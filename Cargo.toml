@@ -6,6 +6,7 @@ edition = "2021"
 [workspace]
 members = [
     "bootloader",
+    "bootloader/common",
     "bootloader/uefi",
     "kernel"
 ]

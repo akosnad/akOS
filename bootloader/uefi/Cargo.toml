@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 uefi = { version = "0.16", default-features = false, features = ["alloc"] }
+ak_os-bootloader-common = { path = "../common" }
