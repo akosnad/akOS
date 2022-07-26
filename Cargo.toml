@@ -4,8 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = ["kernel"]
+members = [
+    "bootloader",
+    "bootloader/uefi",
+    "kernel"
+]
 
 [build-dependencies]
-ak_os_kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }
-bootloader = "0.11.0-alpha.0"
+ak_os-kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }
+ak_os-bootloader = { path = "bootloader" }
+
+[dependencies]
+build-time = "0.1"
