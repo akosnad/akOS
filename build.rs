@@ -1,13 +1,22 @@
 use std::path::PathBuf;
+use std::env::var;
 
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=Cargo.toml");
+    println!("cargo:rerun-if-changed=Cargo.lock");
+    println!("cargo:rerun-if-changed=kernel");
+
     let kernel_path = {
-        let path = std::env::var("CARGO_BIN_FILE_AK_OS_KERNEL").expect("kernel binary not found");
+        let path = var("CARGO_BIN_FILE_AK_OS_KERNEL").expect("kernel binary not found");
         PathBuf::from(path)
     };
 
-    let fat_path = kernel_path.with_extension("fat");
-    let gpt_path = kernel_path.with_extension("gpt");
+    let fat_path = {
+        let path = var("OUT_DIR").expect("no target dir");
+        PathBuf::from(path).with_file_name("akOS.fat")
+    };
+    let gpt_path = fat_path.with_file_name("akOS.gpt");
 
 
     ak_os_bootloader::create_boot_partition(&kernel_path, &fat_path).expect("failed to create boot partition");

@@ -15,6 +15,7 @@ use uefi::{
     },
     CStr16,
 };
+use aligned::{Aligned, A4};
 
 
 // Taken from rust-osdev/bootloader
@@ -80,7 +81,9 @@ fn load_kernel_file(image: Handle, st: &SystemTable<Boot>) -> Option<&'static mu
         uefi::proto::media::file::FileType::Dir(_) => panic!(),
     };
 
-    let mut buf = [0; 500];
+    let mut _buf: Aligned<A4, [u8; 500]> = Aligned([0; 500]);
+    let mut buf = _buf.as_mut_slice();
+
     let kernel_info: &mut FileInfo = kernel_file.get_info(&mut buf).unwrap();
     let kernel_size = usize::try_from(kernel_info.file_size()).unwrap();
 
@@ -98,3 +101,4 @@ fn load_kernel_file(image: Handle, st: &SystemTable<Boot>) -> Option<&'static mu
 
     Some(kernel_slice)
 }
+

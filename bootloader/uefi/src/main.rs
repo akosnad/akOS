@@ -2,12 +2,15 @@
 #![no_main]
 #![feature(abi_efiapi)]
 #![feature(alloc_error_handler)]
-#![deny(unsafe_op_in_unsafe_fn)]
+#![feature(ptr_to_from_bits)]
 
 use uefi::prelude::*;
 use core::fmt::Write;
 
 extern crate alloc;
+use alloc::boxed::Box;
+
+extern crate backtracer_core;
 
 mod loader;
 
@@ -17,15 +20,29 @@ fn efi_main(image: Handle, mut st: SystemTable<Boot>) -> Status {
         uefi::alloc::init(st.boot_services());
         *PANIC_SYSTEM_TABLE.get() = Some(st.unsafe_clone());
     }
-    writeln!(st.stdout(), "\n\nHello from akOS bootloader!\nBuilt at: {} on {}\ncommit {}",
+
+    let logger: &'static uefi::logger::Logger = unsafe {
+        // let st_clone = Box::new(st.unsafe_clone());
+        // let mut st_leak: &'static mut SystemTable<Boot> = Box::leak(st_clone);
+        let a = Box::new(uefi::logger::Logger::new(st.stdout()));
+        Box::leak(a)
+    };
+
+    #[cfg(debug_assertions)]
+    { log::set_max_level(log::LevelFilter::Trace); }
+    #[cfg(not(debug_assertions))]
+    { log::set_max_level(log::LevelFilter::Warn); }
+
+    log::set_logger(logger).expect("failed to initialize logger");
+
+    log::info!("Hello from akOS bootloader!\nBuilt at: {} on {}, commit {}",
         env!("BUILD_TIME"), env!("BUILD_HOST"), env!("BUILD_GIT_HASH")
     );
 
-
     let kernel = loader::load_kernel(image, &mut st);
-    writeln!(st.stdout(), "found kernel file");
+    log::info!("found kernel file");
 
-    halt();
+    ak_os_bootloader_common::load_and_start_kernel(kernel);
 }
 
 fn halt() -> ! {
@@ -56,7 +73,7 @@ impl<T> core::ops::Deref for UnsafeSyncCell<T> {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     if let Some(st) = unsafe { &mut *PANIC_SYSTEM_TABLE.get() } {
-        writeln!(st.stdout(), "{}", info);
+        writeln!(st.stdout(), "\n\n{}", info).ok();
     }
 
     halt();

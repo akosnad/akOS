@@ -6,3 +6,4 @@ rustflags = ["-C", "relocation-model=static"]
 
 [alias]
 debug = "run -- -d"
+bclean = "clean --target-dir bootloader/target"

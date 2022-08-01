@@ -1,6 +1,9 @@
 #![no_std]
 
+extern crate alloc;
+
 use xmas_elf::ElfFile;
+
 
 pub struct Kernel<'a> {
     pub elf: ElfFile<'a>

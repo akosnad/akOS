@@ -6,6 +6,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=Cargo.lock");
+    println!("cargo:rerun-if-changed=common");
 
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     println!("cargo:rustc-env=UEFI_BOOTLOADER_PATH={}", build_uefi_bootloader(&out_dir).display());
@@ -15,8 +16,11 @@ fn build_uefi_bootloader(out_dir: &Path) -> PathBuf {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
     let mut cmd = Command::new(cargo);
     cmd.arg("install");
+    #[cfg(debug_assertions)]
+    { cmd.arg("--debug"); }
     cmd.arg("--path").arg("uefi");
     println!("cargo:rerun-if-changed=uefi");
+    cmd.arg("--target-dir").arg("target");
     cmd.arg("--locked");
     cmd.arg("--target").arg("x86_64-unknown-uefi");
     cmd.arg("-Zbuild-std=core,alloc")
