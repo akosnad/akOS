@@ -7,3 +7,4 @@ edition = "2021"
 [dependencies]
 xmas-elf = "0.8"
 log = "0.4"
+x86_64 = "0.14"

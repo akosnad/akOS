@@ -99,6 +99,8 @@ fn load_kernel_file(image: Handle, st: &SystemTable<Boot>) -> Option<&'static mu
     let kernel_slice = unsafe { slice::from_raw_parts_mut(kernel_ptr, kernel_size) };
     kernel_file.read(kernel_slice).unwrap();
 
+    log::trace!("read kernel to {:p}, size: {}", kernel_slice.as_ptr(), kernel_slice.len());
+
     Some(kernel_slice)
 }
 

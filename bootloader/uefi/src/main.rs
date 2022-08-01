@@ -4,15 +4,16 @@
 #![feature(alloc_error_handler)]
 #![feature(ptr_to_from_bits)]
 
-use uefi::prelude::*;
+use uefi::{prelude::*, table::boot::{MemoryDescriptor, MemoryType}};
 use core::fmt::Write;
 
 extern crate alloc;
 use alloc::boxed::Box;
 
-extern crate backtracer_core;
-
 mod loader;
+mod memory;
+
+use memory::UefiMemoryDescriptor;
 
 #[entry]
 fn efi_main(image: Handle, mut st: SystemTable<Boot>) -> Status {
@@ -40,9 +41,23 @@ fn efi_main(image: Handle, mut st: SystemTable<Boot>) -> Status {
     );
 
     let kernel = loader::load_kernel(image, &mut st);
-    log::info!("found kernel file");
 
-    ak_os_bootloader_common::load_and_start_kernel(kernel);
+    let mmap = {
+        let max = st.boot_services().memory_map_size().map_size + 8 * core::mem::size_of::<MemoryDescriptor>();
+        let ptr = st.boot_services().allocate_pool(MemoryType::LOADER_DATA, max)?;
+        unsafe { core::slice::from_raw_parts_mut(ptr, max) }
+    };
+    log::trace!("mmap at: {:p}, size: {}", mmap.as_ptr(), mmap.len());
+
+    log::info!("exiting UEFI boot services");
+    let (system_table, memory_map) = st.exit_boot_services(image, mmap)
+        .expect("failed to exit UEFI boot services");
+
+    let mut frame_allocator = ak_os_bootloader_common::memory::FrameAllocator::new(memory_map.copied().map(UefiMemoryDescriptor));
+
+    let mut page_tables = create_page_tables(frame_allocator);
+
+    ak_os_bootloader_common::load_and_start_kernel(kernel, frame_allocator, page_tables);
 }
 
 fn halt() -> ! {

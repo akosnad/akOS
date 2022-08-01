@@ -36,6 +36,7 @@ name = "ak_os-bootloader-common"
 version = "0.1.0"
 dependencies = [
  "log",
+ "x86_64",
  "xmas-elf",
 ]
 
@@ -48,6 +49,7 @@ dependencies = [
  "backtracer_core",
  "log",
  "uefi",
+ "x86_64",
 ]
 
 [[package]]
