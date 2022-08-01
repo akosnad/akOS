@@ -55,7 +55,7 @@ fn efi_main(image: Handle, mut st: SystemTable<Boot>) -> Status {
 
     let mut frame_allocator = ak_os_bootloader_common::memory::FrameAllocator::new(memory_map.copied().map(UefiMemoryDescriptor));
 
-    let mut page_tables = create_page_tables(frame_allocator);
+    let mut page_tables = memory::create_page_tables(&mut frame_allocator);
 
     ak_os_bootloader_common::load_and_start_kernel(kernel, frame_allocator, page_tables);
 }
