@@ -1,4 +1,5 @@
 #![feature(alloc_error_handler)]
+#![feature(panic_can_unwind)]
 #![no_std]
 #![no_main]
 
@@ -10,7 +11,6 @@ mod logger;
 
 use bootloader_api::{entry_point, BootInfo, BootloaderConfig, config::Mapping};
 use x86_64::VirtAddr;
-use alloc::boxed::Box;
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -26,14 +26,16 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     let mut frame_allocator = unsafe { mem::BootInfoFrameAllocator::init(&boot_info.memory_regions) };
     allocator::init_heap(&mut mapper, 1024 * 1024 * 4, &mut frame_allocator).expect("heap init failed");
 
-//    let mut fb_box = Box::new(boot_info.framebuffer.into_option().expect("no framebuffer"));
-//    let mut fb = Box::leak(fb_box);
-//
-//    let logger_box = Box::new(logger::KernelLogger::new(fb.buffer_mut(), fb.info()));
-//    let logger = Box::leak(logger_box);
-//    log::set_logger(logger).expect("failed to setup logger");
+    let fb = boot_info.framebuffer.as_mut().expect("no framebuffer");
+    let fb_info = fb.info();
+    let fb_array = fb.buffer_mut();
+    let fb_buffer = unsafe { core::slice::from_raw_parts_mut(fb_array.as_mut_ptr(), fb_array.len()) };
 
+    let logger = logger::LOGGER.get_or_init(move || logger::LockedLogger::new(fb_buffer, fb_info));
+    log::set_logger(logger).expect("failed to setup logger");
+    log::set_max_level(log::LevelFilter::Trace);
     log::info!("Hello world");
+
     halt();
 }
 
@@ -44,7 +46,11 @@ fn halt() -> ! {
 }
 
 #[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    if let Some(logger) = logger::LOGGER.get() {
+        unsafe { logger.force_unlock(); }
+    }
+    log::error!("{}", info);
     x86_64::instructions::interrupts::disable();
     halt();
 }
