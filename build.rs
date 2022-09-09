@@ -19,8 +19,8 @@ fn main() {
     let gpt_path = fat_path.with_file_name("akOS.gpt");
 
 
-    ak_os_bootloader::create_boot_partition(&kernel_path, &fat_path).expect("failed to create boot partition");
-    ak_os_bootloader::create_uefi_disk_image(&fat_path, &gpt_path).unwrap();
+    bootloader::create_boot_partition(&kernel_path, &fat_path).expect("failed to create boot partition");
+    bootloader::create_uefi_disk_image(&fat_path, &gpt_path).unwrap();
 
     println!("cargo:rustc-env=UEFI_FAT_PATH={}", fat_path.display());
     println!("cargo:rustc-env=UEFI_GPT_PATH={}", gpt_path.display());
