@@ -13,5 +13,4 @@ uefi = { version = "0.16", default-features = false, features= ["alloc"], option
 log = "0.4"
 x86_64 = "0.14"
 bootloader_api = { git = "https://github.com/rust-osdev/bootloader", branch = "next" }
-
-
+linked_list_allocator = "0.10"
