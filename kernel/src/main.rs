@@ -5,11 +5,8 @@
 
 extern crate alloc;
 
-mod mem;
-mod allocator;
-mod logger;
-
 use bootloader_api::{entry_point, BootInfo, BootloaderConfig, config::Mapping};
+use ak_os_kernel::{mem, allocator, logger, task::{Task, executor::Executor}};
 use x86_64::VirtAddr;
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
@@ -36,7 +33,22 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     log::set_max_level(log::LevelFilter::Trace);
     log::info!("Hello world");
 
+    ak_os_kernel::init();
+
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.run();
+
     halt();
+}
+
+async fn test() -> u32 {
+    42
+}
+
+async fn example_task() {
+    let n = test().await;
+    log::info!("async hello: {}", n);
 }
 
 fn halt() -> ! {
