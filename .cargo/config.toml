@@ -3,7 +3,3 @@ bindeps = true
 
 [target.x86_64-unknown-none]
 rustflags = ["-C", "relocation-model=static"]
-
-[alias]
-debug = "run -- -d"
-bclean = "clean --target-dir bootloader/target"

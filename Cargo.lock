@@ -17,9 +17,12 @@ version = "0.1.0"
 dependencies = [
  "bootloader_api",
  "conquer-once",
+ "crossbeam-queue",
+ "lazy_static",
  "linked_list_allocator",
  "log",
  "noto-sans-mono-bitmap",
+ "pic8259",
  "spinning_top",
  "uefi",
  "x86_64",
@@ -73,7 +76,7 @@ dependencies = [
 [[package]]
 name = "bootloader"
 version = "0.11.0-alpha.0"
-source = "git+https://github.com/rust-osdev/bootloader?branch=next#6c01f45ca293861c9d3dab6f14b982cb2ca7bf7e"
+source = "git+https://github.com/rust-osdev/bootloader?rev=6c01f45ca#6c01f45ca293861c9d3dab6f14b982cb2ca7bf7e"
 dependencies = [
  "anyhow",
  "fatfs",
@@ -85,7 +88,7 @@ dependencies = [
 [[package]]
 name = "bootloader_api"
 version = "0.1.0-alpha.0"
-source = "git+https://github.com/rust-osdev/bootloader?branch=next#6c01f45ca293861c9d3dab6f14b982cb2ca7bf7e"
+source = "git+https://github.com/rust-osdev/bootloader?rev=6c01f45ca#6c01f45ca293861c9d3dab6f14b982cb2ca7bf7e"
 
 [[package]]
 name = "build-time"
@@ -156,6 +159,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-queue"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1cd42583b04998a5363558e5f9291ee5a5ff6b49944332103f251e7479a82aa7"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-utils"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51887d4adc7b564537b15adcfb307936f8075dfcd5f00dde9a9f1d29383682bc"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "fatfs"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -194,6 +216,15 @@ dependencies = [
  "crc",
  "log",
  "uuid",
+]
+
+[[package]]
+name = "lazy_static"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+dependencies = [
+ "spin",
 ]
 
 [[package]]
@@ -280,6 +311,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18a6dbe30758c9f83eb00cbea4ac95966305f5a7772f3f42ebfc7fc7eddbd8e1"
 
 [[package]]
+name = "pic8259"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24ec21f514e2e16e94649f1d041ca4a7069b512c037ac156360652a775e6229d"
+dependencies = [
+ "x86_64",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -334,6 +374,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "spin"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spinning_top"
