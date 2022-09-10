@@ -17,11 +17,14 @@ fn main() {
         PathBuf::from(path).with_file_name("akOS.fat")
     };
     let gpt_path = fat_path.with_file_name("akOS.gpt");
+    let gpt_path_bios = fat_path.with_file_name("akOS_bios.gpt");
 
 
     bootloader::create_boot_partition(&kernel_path, &fat_path).expect("failed to create boot partition");
     bootloader::create_uefi_disk_image(&fat_path, &gpt_path).unwrap();
+    bootloader::create_bios_disk_image(&fat_path, &gpt_path_bios).unwrap();
 
     println!("cargo:rustc-env=UEFI_FAT_PATH={}", fat_path.display());
     println!("cargo:rustc-env=UEFI_GPT_PATH={}", gpt_path.display());
+    println!("cargo:rustc-env=BIOS_GPT_PATH={}", gpt_path_bios.display());
 }
