@@ -18,5 +18,9 @@ noto-sans-mono-bitmap = "0.1"
 spinning_top = "0.2"
 conquer-once = { version = "0.3", default-features = false }
 crossbeam-queue = { version = "0.3", default-features = false, features = ["alloc"] }
-pic8259 = "0.10"
 lazy_static = { version = "1.4", features = ["spin_no_std"] }
+pic8259 = "0.10"
+x2apic = "0.4"
+spin = "0.9"
+acpi = "4.1"
+futures-util = { version = "0.3", default-features = false, features = ["alloc"] }

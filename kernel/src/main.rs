@@ -1,17 +1,20 @@
 #![feature(alloc_error_handler)]
 #![feature(panic_can_unwind)]
+#![feature(generators)]
 #![no_std]
 #![no_main]
 
 extern crate alloc;
 
 use bootloader_api::{entry_point, BootInfo, BootloaderConfig, config::Mapping};
-use ak_os_kernel::{mem, allocator, logger, task::{Task, executor::Executor}};
+use ak_os_kernel::{mem, allocator, logger, task::{Task, executor::Executor, keyboard}};
 use x86_64::VirtAddr;
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
     config.mappings.physical_memory = Some(Mapping::Dynamic);
+    config.frame_buffer.minimum_framebuffer_height = Some(800);
+    config.frame_buffer.minimum_framebuffer_width = Some(600);
     config
 };
 
@@ -36,24 +39,21 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     ak_os_kernel::init();
 
     let mut executor = Executor::new();
+    executor.spawn(Task::new_with_name("keyboard", keyboard::process()));
     executor.spawn(Task::new(example_task()));
     executor.run();
-
-    halt();
 }
 
 async fn test() -> u32 {
+    for _ in 0..10000000 {
+    }
     42
 }
 
 async fn example_task() {
-    let n = test().await;
-    log::info!("async hello: {}", n);
-}
-
-fn halt() -> ! {
-    loop {
-        x86_64::instructions::hlt();
+    for _ in 0..2 {
+        let n = test().await;
+        log::info!("async hello: {}", n);
     }
 }
 
@@ -64,7 +64,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     }
     log::error!("{}", info);
     x86_64::instructions::interrupts::disable();
-    halt();
+    ak_os_kernel::halt();
 }
 
 #[alloc_error_handler]
