@@ -6,15 +6,15 @@
 
 extern crate alloc;
 
-use bootloader_api::{entry_point, BootInfo, BootloaderConfig, config::Mapping};
+use bootloader_api::{entry_point, BootInfo, BootloaderConfig, config::Mapping, info::MemoryRegionKind};
 use ak_os_kernel::{mem, allocator, logger, task::{Task, executor::Executor, keyboard}};
 use x86_64::{VirtAddr, structures::paging::{Mapper, PhysFrame, PageTableFlags, Size4KiB}, PhysAddr};
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
     config.mappings.physical_memory = Some(Mapping::Dynamic);
-    config.frame_buffer.minimum_framebuffer_height = Some(800);
-    config.frame_buffer.minimum_framebuffer_width = Some(600);
+    //config.frame_buffer.minimum_framebuffer_height = Some(1024);
+    //config.frame_buffer.minimum_framebuffer_width = Some(768);
     config
 };
 
@@ -34,11 +34,36 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     let logger = logger::LOGGER.get_or_init(move || logger::LockedLogger::new(fb_buffer, fb_info));
     log::set_logger(logger).expect("failed to setup logger");
     log::set_max_level(log::LevelFilter::Trace);
+    #[cfg(debug_assertions)]
+    {
+        log::set_max_level(log::LevelFilter::Trace);
+    }
+
     log::info!("Hello world");
+
+    #[cfg(debug_assertions)]
+    {
+        use alloc::vec::Vec;
+        use core::ops::Range;
+
+        log::trace!("physical_memory_offset: 0x{:x}", physical_memory_offset);
+        let bootloader_regions: Vec<Range<u64>> = boot_info.memory_regions.iter()
+            .filter(|r| r.kind == MemoryRegionKind::Bootloader)
+            .map(|r| r.start..r.end)
+            .collect();
+        log::trace!("bootloader memory regions: {:x?}", bootloader_regions);
+    }
     log::trace!("physical_memory_offset: 0x{:x}", physical_memory_offset);
-    // FIXME: this is the physical address of the APIC, we should map this dinamycally when it is
-    // Initialized
-    unsafe { mapper.identity_map(PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(0xfee00000)), PageTableFlags::WRITABLE | PageTableFlags::PRESENT, &mut frame_allocator).unwrap().flush(); }
+
+    unsafe {
+        let apic_base_addr = x2apic::lapic::xapic_base();
+        mapper.identity_map(
+            PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(apic_base_addr)),
+            PageTableFlags::WRITABLE | PageTableFlags::PRESENT,
+            &mut frame_allocator)
+        .unwrap().flush();
+    }
+
     ak_os_kernel::init();
 
     let mut executor = Executor::new();

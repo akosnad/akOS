@@ -49,29 +49,27 @@ lazy_static! {
     };
 }
 
-fn init_apic() {
-    let xapic_base = unsafe { x2apic::lapic::xapic_base() };
-    // FIXME: map the physical address dinamycally
-    let xapic_virt_addr = xapic_base;
+/// This function assumes that the LAPIC base address is mapped
+/// to virtual memory.
+unsafe fn init_apic() {
+    let xapic_base =  x2apic::lapic::xapic_base();
     let mut lapic = x2apic::lapic::LocalApicBuilder::new()
-        .set_xapic_base(xapic_virt_addr)
+        .set_xapic_base(xapic_base)
         .spurious_vector(0xff)
         .error_vector(InterruptIndex::ApicError.as_usize())
         .timer_vector(InterruptIndex::Timer.as_usize())
         .build()
         .unwrap_or_else(|e| panic!("{}", e));
-    unsafe {
-        lapic.enable();
-        //lapic.disable_timer();
-        log::trace!("apic id: {}, version: {}", lapic.id(), lapic.version());
-    }
+    lapic.enable();
+    log::trace!("apic id: {}, version: {}", lapic.id(), lapic.version());
+
     LAPIC.init_once(|| { spin::Mutex::new(lapic) });
 }
 
 pub fn init() {
     log::trace!("loading IDT at: {:p}", &IDT);
     IDT.load();
-    init_apic();
+    unsafe { init_apic(); }
     x86_64::instructions::interrupts::enable();
 }
 

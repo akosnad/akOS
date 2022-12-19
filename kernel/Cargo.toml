@@ -3,13 +3,7 @@ name = "ak_os-kernel"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-default = ["uefi_boot"]
-
-uefi_boot = ["uefi"]
-
 [dependencies]
-uefi = { version = "0.16", default-features = false, features= ["alloc"], optional = true }
 log = "0.4"
 x86_64 = "0.14"
 bootloader_api = { git = "https://github.com/rust-osdev/bootloader", rev = "6c01f45ca" }
