@@ -1,5 +1,5 @@
 use super::{Task, TaskId};
-use alloc::{collections::BTreeMap, sync::Arc, task::Wake, string::ToString};
+use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
 use crossbeam_queue::ArrayQueue;
 use core::task::{Waker, Context, Poll};
 
@@ -40,9 +40,6 @@ impl Executor {
                 None => continue, // task no longer exists
             };
 
-            let f = if let Some(name) = task.name.clone() { name } else { task.id.0.to_string() };
-            log::trace!("processing task: {}", f);
-
             let waker = waker_cache
                 .entry(task_id)
                 .or_insert_with(|| TaskWaker::new(task_id, task_queue.clone()));
@@ -52,11 +49,8 @@ impl Executor {
                 Poll::Ready(()) => {
                     tasks.remove(&task_id);
                     waker_cache.remove(&task_id);
-                    log::trace!("task ready: {}", f);
                 },
-                Poll::Pending => {
-                    log::trace!("task not ready yet: {}", f);
-                }
+                Poll::Pending => {}
             }
         }
     }

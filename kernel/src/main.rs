@@ -53,15 +53,19 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
             .collect();
         log::trace!("bootloader memory regions: {:x?}", bootloader_regions);
     }
-    log::trace!("physical_memory_offset: 0x{:x}", physical_memory_offset);
 
     unsafe {
         let apic_base_addr = x2apic::lapic::xapic_base();
+        // we map the LAPIC physical addresses to virtual memory
         mapper.identity_map(
             PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(apic_base_addr)),
             PageTableFlags::WRITABLE | PageTableFlags::PRESENT,
-            &mut frame_allocator)
-        .unwrap().flush();
+            &mut frame_allocator).unwrap().flush();
+        // we map the IO apic registers the same way
+        mapper.identity_map(
+            PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(0xfec00000)),
+            PageTableFlags::WRITABLE | PageTableFlags::PRESENT,
+            &mut frame_allocator).unwrap().flush();
     }
 
     ak_os_kernel::init();

@@ -1,19 +1,18 @@
 use conquer_once::spin::OnceCell;
 use spin;
-use x2apic::lapic::LocalApic;
+use x2apic::{lapic::LocalApic, ioapic::{RedirectionTableEntry, IrqFlags}};
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use lazy_static::lazy_static;
-
-pub const INT_OFFSET: u8 = 32;
 
 pub static LAPIC: OnceCell<spin::Mutex<LocalApic>> = OnceCell::uninit();
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum InterruptIndex {
-    ApicError = INT_OFFSET,
-    Timer,
+    IoApic = 40,
     Keyboard,
+    ApicError = 0x90,
+    Timer,
 }
 
 impl InterruptIndex {
@@ -44,6 +43,7 @@ lazy_static! {
 
         idt[InterruptIndex::ApicError.as_usize()].set_handler_fn(apic_error_handler);
         idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
+        idt[InterruptIndex::IoApic.as_usize()].set_handler_fn(ioapic_interrupt_handler);
         idt[InterruptIndex::Keyboard.as_usize()].set_handler_fn(keyboard_interrupt_handler);
         idt
     };
@@ -62,6 +62,19 @@ unsafe fn init_apic() {
         .unwrap_or_else(|e| panic!("{}", e));
     lapic.enable();
     log::trace!("apic id: {}, version: {}", lapic.id(), lapic.version());
+
+
+    let mut ioapic = x2apic::ioapic::IoApic::new(0xfec00000);
+    ioapic.init(InterruptIndex::IoApic.as_u8());
+    log::trace!("ioapic id: {}, version: {}", ioapic.id(), ioapic.version());
+
+    let mut entry = RedirectionTableEntry::default();
+    entry.set_mode(x2apic::ioapic::IrqMode::Fixed);
+    entry.set_dest(lapic.id() as u8);
+    entry.set_vector(InterruptIndex::Keyboard.as_u8());
+    entry.set_flags(IrqFlags::LEVEL_TRIGGERED | IrqFlags::LOW_ACTIVE | IrqFlags::MASKED);
+    ioapic.set_table_entry(InterruptIndex::Keyboard.as_u8() - InterruptIndex::IoApic.as_u8(), entry);
+    ioapic.enable_irq(InterruptIndex::Keyboard.as_u8() - InterruptIndex::IoApic.as_u8());
 
     LAPIC.init_once(|| { spin::Mutex::new(lapic) });
 }
@@ -123,8 +136,16 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
     //log::trace!(".");
     // TODO: track elapsed boot time
     unsafe {
-        let mut lapic = LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized").lock();
-        lapic.end_of_interrupt();
+        LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized")
+            .lock().end_of_interrupt();
+    }
+}
+
+extern "x86-interrupt" fn ioapic_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    log::trace!("ioapic interrupt!");
+    unsafe {
+        LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized")
+            .lock().end_of_interrupt();
     }
 }
 
