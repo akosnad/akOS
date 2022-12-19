@@ -27,8 +27,10 @@ impl Log for LockedLogger {
 
     fn log(&self, record: &Record) {
         use core::fmt::Write;
-        let mut logger = self.0.lock();
-        writeln!(logger, "[{}] {}", record.level(), record.args()).unwrap();
+        x86_64::instructions::interrupts::without_interrupts(|| {
+            let mut logger = self.0.lock();
+            writeln!(logger, "[{}] {}", record.level(), record.args()).unwrap();
+        });
     }
 
     fn flush(&self) {}

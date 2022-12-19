@@ -1,18 +1,18 @@
+use conquer_once::spin::OnceCell;
 use spin;
+use x2apic::lapic::LocalApic;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
-use pic8259::ChainedPics;
 use lazy_static::lazy_static;
 
-pub const PIC_1_OFFSET: u8 = 32;
-pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
+pub const INT_OFFSET: u8 = 32;
 
-pub static PICS: spin::Mutex<ChainedPics> =
-    spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
+pub static LAPIC: OnceCell<spin::Mutex<LocalApic>> = OnceCell::uninit();
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum InterruptIndex {
-    Timer = PIC_1_OFFSET,
+    ApicError = INT_OFFSET,
+    Timer,
     Keyboard,
 }
 
@@ -33,6 +33,8 @@ lazy_static! {
 
         idt.breakpoint.set_handler_fn(breakpoint_handler);
         idt.page_fault.set_handler_fn(page_fault_handler);
+        idt.general_protection_fault.set_handler_fn(general_protection_fault_handler);
+        idt.stack_segment_fault.set_handler_fn(stack_segment_fault_handler);
 
         unsafe {
             idt.double_fault
@@ -40,29 +42,36 @@ lazy_static! {
                 .set_stack_index(crate::gdt::DOUBLE_FAULT_IST_INDEX);
         }
 
+        idt[InterruptIndex::ApicError.as_usize()].set_handler_fn(apic_error_handler);
         idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
         idt[InterruptIndex::Keyboard.as_usize()].set_handler_fn(keyboard_interrupt_handler);
         idt
     };
 }
 
-fn disable_apic() {
-    let lapic_base = unsafe { x2apic::lapic::xapic_base() };
+fn init_apic() {
+    let xapic_base = unsafe { x2apic::lapic::xapic_base() };
+    // FIXME: map the physical address dinamycally
+    let xapic_virt_addr = xapic_base;
     let mut lapic = x2apic::lapic::LocalApicBuilder::new()
-        .set_xapic_base(lapic_base)
-        .timer_vector(0)
-        .error_vector(0)
-        .spurious_vector(0)
+        .set_xapic_base(xapic_virt_addr)
+        .spurious_vector(0xff)
+        .error_vector(InterruptIndex::ApicError.as_usize())
+        .timer_vector(InterruptIndex::Timer.as_usize())
         .build()
         .unwrap_or_else(|e| panic!("{}", e));
-    unsafe { lapic.disable() };
+    unsafe {
+        lapic.enable();
+        //lapic.disable_timer();
+        log::trace!("apic id: {}, version: {}", lapic.id(), lapic.version());
+    }
+    LAPIC.init_once(|| { spin::Mutex::new(lapic) });
 }
 
 pub fn init() {
-    disable_apic();
     log::trace!("loading IDT at: {:p}", &IDT);
     IDT.load();
-    unsafe { PICS.lock().initialize() };
+    init_apic();
     x86_64::instructions::interrupts::enable();
 }
 
@@ -83,17 +92,41 @@ extern "x86-interrupt" fn page_fault_handler(
     panic!("Unhandled page fault");
 }
 
+extern "x86-interrupt" fn general_protection_fault_handler(
+    stack_frame: InterruptStackFrame,
+    error_code: u64,
+) {
+    panic!("EXCEPTION: GENERAL PROTECTION FAULT\nerror code: {}, {:#?}", error_code, stack_frame);
+}
+
+extern "x86-interrupt" fn stack_segment_fault_handler(
+    stack_frame: InterruptStackFrame,
+    error_code: u64,
+) {
+    panic!("EXCEPTION: SATCK SEGMENT FAULT\nerror code: {}, {:#?}", error_code, stack_frame);
+}
+
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
-    _error_code: u64,
+    error_code: u64,
 ) -> ! {
-    panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
+    panic!("EXCEPTION: DOUBLE FAULT\nerror code: {}, {:#?}", error_code, stack_frame);
+}
+
+extern "x86-interrupt" fn apic_error_handler(_stack_frame: InterruptStackFrame) {
+    log::trace!("APIC ERROR CAUGHT");
+    unsafe {
+        LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized")
+            .lock().end_of_interrupt();
+    }
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    //log::trace!(".");
+    // TODO: track elapsed boot time
     unsafe {
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
+        let mut lapic = LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized").lock();
+        lapic.end_of_interrupt();
     }
 }
 
@@ -105,7 +138,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     crate::task::keyboard::add_scancode(scancode);
 
     unsafe {
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
+        LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized")
+            .lock().end_of_interrupt();
     }
 }

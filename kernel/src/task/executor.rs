@@ -70,7 +70,6 @@ impl Executor {
 
         interrupts::disable();
         if self.task_queue.is_empty() {
-            log::trace!("halting, as no tasks are running");
             enable_and_hlt();
         } else { interrupts::enable(); }
     }

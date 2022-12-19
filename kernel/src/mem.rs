@@ -1,4 +1,3 @@
-use log::trace;
 use x86_64::structures::paging::{
     FrameAllocator, OffsetPageTable, PageTable, PhysFrame, Size4KiB,
 };
@@ -13,17 +12,6 @@ use core::ops::Deref;
 /// to avoid aliasing `&mut` references (which is undefined behavior).
 pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static> {
     let level_4_table = active_level_4_table(physical_memory_offset);
-
-    #[cfg(debug_assertions)]
-    {
-        use x86_64::structures::paging::PageTableFlags;
-        trace!("present page table entries:");
-        for entry in level_4_table.iter() {
-            if entry.flags().contains(PageTableFlags::PRESENT) {
-                trace!("{:?}", entry);
-            }
-        }
-    }
 
     OffsetPageTable::new(level_4_table, physical_memory_offset)
 }
@@ -43,7 +31,6 @@ unsafe fn active_level_4_table(physical_memory_offset: VirtAddr) -> &'static mut
     let virt = physical_memory_offset + phys.as_u64();
     let page_table_ptr: *mut PageTable = virt.as_mut_ptr();
 
-    trace!("lvl4 page table at: {:?}", page_table_ptr);
     &mut *page_table_ptr // unsafe
 }
 

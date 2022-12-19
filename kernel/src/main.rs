@@ -8,7 +8,7 @@ extern crate alloc;
 
 use bootloader_api::{entry_point, BootInfo, BootloaderConfig, config::Mapping};
 use ak_os_kernel::{mem, allocator, logger, task::{Task, executor::Executor, keyboard}};
-use x86_64::VirtAddr;
+use x86_64::{VirtAddr, structures::paging::{Mapper, PhysFrame, PageTableFlags, Size4KiB}, PhysAddr};
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -35,7 +35,10 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     log::set_logger(logger).expect("failed to setup logger");
     log::set_max_level(log::LevelFilter::Trace);
     log::info!("Hello world");
-
+    log::trace!("physical_memory_offset: 0x{:x}", physical_memory_offset);
+    // FIXME: this is the physical address of the APIC, we should map this dinamycally when it is
+    // Initialized
+    unsafe { mapper.identity_map(PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(0xfee00000)), PageTableFlags::WRITABLE | PageTableFlags::PRESENT, &mut frame_allocator).unwrap().flush(); }
     ak_os_kernel::init();
 
     let mut executor = Executor::new();
