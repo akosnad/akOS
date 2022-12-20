@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 use bootloader_api::info::MemoryRegions;
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
-use x86_64::{structures::paging::{OffsetPageTable, PageTable, PhysFrame, Mapper, PageTableFlags}, VirtAddr, PhysAddr};
+use x86_64::{structures::paging::{OffsetPageTable, PageTable, PhysFrame, Mapper, PageTableFlags, mapper::MapToError, Size4KiB}, VirtAddr, PhysAddr};
 
 use self::paging::{BootInfoFrameAllocator, KernelFrameAllocator};
 
@@ -13,8 +13,8 @@ mod paging;
 
 static MEMORY_MANAGER: OnceCell<MemoryManager> = OnceCell::uninit();
 
-pub fn get_memory_manager() -> Result<&'static MemoryManager<'static>, ()> {
-    MEMORY_MANAGER.try_get().or(Err(()))
+pub fn get_memory_manager() -> MemoryManager<'static> {
+    MEMORY_MANAGER.try_get().expect("kernel memory manager is uninitialized").clone()
 }
 
 
@@ -25,15 +25,18 @@ pub struct MemoryManager<'a> {
 }
 
 impl MemoryManager<'_> {
-    pub fn identity_map(&self, frame: PhysFrame) -> Result<(), ()> {
+    pub fn identity_map(&self, frame: PhysFrame) -> Result<(), MapToError<Size4KiB>> {
         unsafe {
         self.page_table.lock().identity_map(
             frame,
             PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
             self.frame_allocator.lock().deref_mut()
-            ).or(Err(()))?.flush();
+            )?.flush();
         }
         Ok(())
+    }
+    pub fn identity_map_address(&self, physical_address: u64) -> Result<(), MapToError<Size4KiB>> {
+        self.identity_map(PhysFrame::containing_address(PhysAddr::new(physical_address)))
     }
 }
 
@@ -41,12 +44,16 @@ impl AcpiHandler for MemoryManager<'_> {
     unsafe fn map_physical_region<T>(&self, physical_address: usize, size: usize) -> acpi::PhysicalMapping<Self, T> {
         let start_address = PhysAddr::new(physical_address as u64);
         let end_address = PhysAddr::new((physical_address + size) as u64);
-        let range = PhysFrame::range(PhysFrame::containing_address(start_address), PhysFrame::containing_address(end_address));
+        let range = PhysFrame::range_inclusive(PhysFrame::containing_address(start_address), PhysFrame::containing_address(end_address));
 
         // TODO: don't necessarily identity map the requested addresses, this could be a bit
         // more smarter. It also panics if it cannot map the address
         for frame in range.into_iter() {
-            self.identity_map(frame).unwrap();
+            self.identity_map(frame).or_else(|e| match e { 
+                MapToError::PageAlreadyMapped(_) => Ok(()), // if the page is already mapped, we
+                                                            // leave it alone for now
+                _=> Err(()),
+            }).unwrap();
         }
         acpi::PhysicalMapping::new(
             start_address.as_u64() as usize,
@@ -58,7 +65,8 @@ impl AcpiHandler for MemoryManager<'_> {
     }
 
     fn unmap_physical_region<T>(_region: &acpi::PhysicalMapping<Self, T>) {
-        todo!("can't unmap a memory region yet")
+        // TODO: can't unmap a memory region yet,
+        // it's not a big problem yet..
     }
 }
 
@@ -74,7 +82,7 @@ pub unsafe fn init(physical_memory_offset: VirtAddr, memory_regions: &'static Me
 
     let mut initial_frame_allocator = BootInfoFrameAllocator::init(memory_regions);
 
-    allocator::init_heap(&mut page_table, 1024 * 1024 * 4, &mut initial_frame_allocator).expect("heap init failed");
+    allocator::init_heap(&mut page_table, 1024 * 1024 * 4, &mut initial_frame_allocator).unwrap_or_else(|e| panic!("heap init failed: {:#?}", e));
 
     MEMORY_MANAGER.init_once(|| MemoryManager {
         page_table: Arc::new(Mutex::new(page_table)),

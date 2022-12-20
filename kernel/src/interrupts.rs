@@ -1,10 +1,11 @@
 use conquer_once::spin::OnceCell;
-use spin;
-use x2apic::{lapic::LocalApic, ioapic::{RedirectionTableEntry, IrqFlags}};
+use spin::{self, Mutex};
+use x2apic::{lapic::LocalApic, ioapic::{RedirectionTableEntry, IrqFlags, IoApic}};
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use lazy_static::lazy_static;
 
 pub static LAPIC: OnceCell<spin::Mutex<LocalApic>> = OnceCell::uninit();
+pub static IOAPIC: OnceCell<spin::Mutex<IoApic>> = OnceCell::uninit();
 
 lazy_static! {
     #[derive(Debug)]
@@ -69,10 +70,12 @@ impl Into<usize> for IoApicTableIndex {
     }
 }
 
-/// This function assumes that the LAPIC base address is mapped
-/// to virtual memory.
-unsafe fn init_apic() {
-    let xapic_base =  x2apic::lapic::xapic_base();
+unsafe fn init_lapic() {
+    let xapic_base = x2apic::lapic::xapic_base();
+    let mm = crate::mem::get_memory_manager();
+    mm.identity_map_address(xapic_base)
+                    .unwrap_or_else(|e| panic!("can't map APIC base address: {:#?}", e));
+
     let mut lapic = x2apic::lapic::LocalApicBuilder::new()
         .set_xapic_base(xapic_base)
         .spurious_vector(0xff)
@@ -83,8 +86,19 @@ unsafe fn init_apic() {
     lapic.enable();
     log::trace!("apic id: {}, version: {}", lapic.id(), lapic.version());
 
+    LAPIC.init_once(|| { spin::Mutex::new(lapic) });
+}
 
-    let mut ioapic = x2apic::ioapic::IoApic::new(0xfec00000);
+unsafe fn init_io_apic() {
+    let lapic = LAPIC.get().expect("should have the LAPIC initialized").lock();
+    const IO_APIC_ADDRESS: u64 = 0xfec00000; // TODO: get this from the ACPI tables
+
+    let mm = crate::mem::get_memory_manager();
+    mm.identity_map_address(IO_APIC_ADDRESS)
+            .unwrap_or_else(|e| panic!("can't map IO-APIC base address: {:#?}", e));
+
+
+    let mut ioapic = x2apic::ioapic::IoApic::new(IO_APIC_ADDRESS);
     ioapic.init(IOAPIC_INTERRUPT_INDEX_OFFSET);
     log::trace!("ioapic id: {}, version: {}", ioapic.id(), ioapic.version());
 
@@ -96,13 +110,16 @@ unsafe fn init_apic() {
     ioapic.set_table_entry(IoApicTableIndex::Keyboard.into(), entry);
     ioapic.enable_irq(IoApicTableIndex::Keyboard.into());
 
-    LAPIC.init_once(|| { spin::Mutex::new(lapic) });
+    IOAPIC.init_once(|| Mutex::new(ioapic));
 }
 
 pub fn init() {
     log::trace!("loading IDT at: {:p}", &IDT);
     IDT.load();
-    unsafe { init_apic(); }
+    unsafe {
+        init_lapic();
+        init_io_apic();
+    }
     x86_64::instructions::interrupts::enable();
 }
 

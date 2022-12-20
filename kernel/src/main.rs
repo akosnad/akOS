@@ -8,7 +8,7 @@ extern crate alloc;
 
 use bootloader_api::{entry_point, BootInfo, BootloaderConfig, config::Mapping};
 use ak_os_kernel::{mem, logger, task::{Task, executor::Executor, keyboard}};
-use x86_64::{VirtAddr, structures::paging::{PhysFrame, Size4KiB}, PhysAddr};
+use x86_64::VirtAddr;
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -23,7 +23,6 @@ entry_point!(main, config = &BOOTLOADER_CONFIG);
 fn main(boot_info: &'static mut BootInfo) -> ! {
     let physical_memory_offset = VirtAddr::new(boot_info.physical_memory_offset.into_option().expect("no physical_memory_offset"));
     unsafe { mem::init(physical_memory_offset, &boot_info.memory_regions) };
-    let mm = mem::get_memory_manager().expect("failed to get kernel memory manager");
 
     let fb = boot_info.framebuffer.as_mut().expect("no framebuffer");
     let fb_info = fb.info();
@@ -40,21 +39,13 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
 
     log::info!("Hello world");
 
-    unsafe {
-        let apic_base_addr = x2apic::lapic::xapic_base();
-        // we map the LAPIC physical addresses to virtual memory
-        mm.identity_map(PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(apic_base_addr))).unwrap();
-        // we map the IO apic registers the same way
-        mm.identity_map(PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(0xfec00000))).unwrap();
-    }
-
-    ak_os_kernel::init();
-
     if let Some(rsdp_addr) = boot_info.rsdp_addr.into_option() {
         ak_os_kernel::acpi::init(rsdp_addr);
     } else {
         log::warn!("no RSDP address provided for the kernel, ACPI initialization not possible");
     }
+
+    ak_os_kernel::init();
 
     let mut executor = Executor::new();
     executor.spawn(Task::new_with_name("keyboard", keyboard::process()));
