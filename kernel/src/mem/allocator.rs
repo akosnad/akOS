@@ -13,7 +13,7 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 pub const HEAP_START: usize = 0x_4444_4444_0000;
 
 pub fn init_heap(
-    mapper: &mut impl Mapper<Size4KiB>,
+    mapper: &mut (impl Mapper<Size4KiB> + '_),
     heap_size: usize,
     frame_allocator: &mut impl FrameAllocator<Size4KiB>,
 ) -> Result<(), MapToError<Size4KiB>> {
