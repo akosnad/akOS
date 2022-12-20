@@ -6,25 +6,6 @@ use lazy_static::lazy_static;
 
 pub static LAPIC: OnceCell<spin::Mutex<LocalApic>> = OnceCell::uninit();
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum InterruptIndex {
-    IoApic = 40,
-    Keyboard,
-    ApicError = 0x90,
-    Timer,
-}
-
-impl InterruptIndex {
-    fn as_u8(self) -> u8 {
-        self as u8
-    }
-
-    fn as_usize(self) -> usize {
-        usize::from(self.as_u8())
-    }
-}
-
 lazy_static! {
     #[derive(Debug)]
     static ref IDT: InterruptDescriptorTable = {
@@ -41,12 +22,51 @@ lazy_static! {
                 .set_stack_index(crate::gdt::DOUBLE_FAULT_IST_INDEX);
         }
 
-        idt[InterruptIndex::ApicError.as_usize()].set_handler_fn(apic_error_handler);
-        idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
-        idt[InterruptIndex::IoApic.as_usize()].set_handler_fn(ioapic_interrupt_handler);
-        idt[InterruptIndex::Keyboard.as_usize()].set_handler_fn(keyboard_interrupt_handler);
+        idt[InterruptIndex::ApicError.into()].set_handler_fn(apic_error_handler);
+        idt[InterruptIndex::Timer.into()].set_handler_fn(timer_interrupt_handler);
+        idt[InterruptIndex::Keyboard.into()].set_handler_fn(keyboard_interrupt_handler);
         idt
     };
+}
+
+
+const IOAPIC_INTERRUPT_INDEX_OFFSET: u8 = 40;
+const LAPIC_INTERRUPT_INDEX_OFFSET: u8 = 0x90;
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum InterruptIndex {
+    _IoApic = IOAPIC_INTERRUPT_INDEX_OFFSET, // we reserve this 
+    Keyboard,
+    ApicError = LAPIC_INTERRUPT_INDEX_OFFSET,
+    Timer,
+}
+
+impl Into<u8> for InterruptIndex {
+    fn into(self) -> u8 {
+        self as u8
+    }
+}
+impl Into<usize> for InterruptIndex {
+    fn into(self) -> usize {
+        self as usize
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum IoApicTableIndex {
+    Keyboard = 1,
+}
+impl Into<u8> for IoApicTableIndex {
+    fn into(self) -> u8 {
+        self as u8
+    }
+}
+impl Into<usize> for IoApicTableIndex {
+    fn into(self) -> usize {
+        self as usize
+    }
 }
 
 /// This function assumes that the LAPIC base address is mapped
@@ -56,8 +76,8 @@ unsafe fn init_apic() {
     let mut lapic = x2apic::lapic::LocalApicBuilder::new()
         .set_xapic_base(xapic_base)
         .spurious_vector(0xff)
-        .error_vector(InterruptIndex::ApicError.as_usize())
-        .timer_vector(InterruptIndex::Timer.as_usize())
+        .error_vector(InterruptIndex::ApicError.into())
+        .timer_vector(InterruptIndex::Timer.into())
         .build()
         .unwrap_or_else(|e| panic!("{}", e));
     lapic.enable();
@@ -65,16 +85,16 @@ unsafe fn init_apic() {
 
 
     let mut ioapic = x2apic::ioapic::IoApic::new(0xfec00000);
-    ioapic.init(InterruptIndex::IoApic.as_u8());
+    ioapic.init(IOAPIC_INTERRUPT_INDEX_OFFSET);
     log::trace!("ioapic id: {}, version: {}", ioapic.id(), ioapic.version());
 
     let mut entry = RedirectionTableEntry::default();
     entry.set_mode(x2apic::ioapic::IrqMode::Fixed);
     entry.set_dest(lapic.id() as u8);
-    entry.set_vector(InterruptIndex::Keyboard.as_u8());
+    entry.set_vector(InterruptIndex::Keyboard.into());
     entry.set_flags(IrqFlags::LEVEL_TRIGGERED | IrqFlags::LOW_ACTIVE | IrqFlags::MASKED);
-    ioapic.set_table_entry(InterruptIndex::Keyboard.as_u8() - InterruptIndex::IoApic.as_u8(), entry);
-    ioapic.enable_irq(InterruptIndex::Keyboard.as_u8() - InterruptIndex::IoApic.as_u8());
+    ioapic.set_table_entry(IoApicTableIndex::Keyboard.into(), entry);
+    ioapic.enable_irq(IoApicTableIndex::Keyboard.into());
 
     LAPIC.init_once(|| { spin::Mutex::new(lapic) });
 }
@@ -135,14 +155,6 @@ extern "x86-interrupt" fn apic_error_handler(_stack_frame: InterruptStackFrame) 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
     //log::trace!(".");
     // TODO: track elapsed boot time
-    unsafe {
-        LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized")
-            .lock().end_of_interrupt();
-    }
-}
-
-extern "x86-interrupt" fn ioapic_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    log::trace!("ioapic interrupt!");
     unsafe {
         LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized")
             .lock().end_of_interrupt();
