@@ -17,6 +17,7 @@ fn main() {
 
 fn run_in_qemu(uefi_gpt_path: &Path, omvf_path: Option<&Path>, debug: bool) {
     let mut cmd = Command::new("qemu-system-x86_64");
+    cmd.arg("-serial").arg("stdio");
     cmd.arg("-drive");
     cmd.arg(format!("format=raw,file={}", uefi_gpt_path.display()));
     if let Some(omvf_path) = omvf_path {

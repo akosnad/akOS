@@ -11,6 +11,7 @@ pub mod task;
 pub mod gdt;
 pub mod interrupts;
 pub mod acpi;
+pub mod serial;
 
 pub fn init() {
     gdt::init();

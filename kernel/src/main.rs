@@ -22,7 +22,7 @@ entry_point!(main, config = &BOOTLOADER_CONFIG);
 
 fn main(boot_info: &'static mut BootInfo) -> ! {
     log::set_logger(&logger::LOGGER).expect("failed to setup logger");
-    log::set_max_level(log::LevelFilter::Trace);
+    log::set_max_level(log::LevelFilter::Info);
     #[cfg(debug_assertions)]
     {
         log::set_max_level(log::LevelFilter::Trace);

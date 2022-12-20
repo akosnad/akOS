@@ -3,23 +3,32 @@ use bootloader_api::info::{FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{get_bitmap, get_bitmap_width, BitmapChar, BitmapHeight, FontWeight};
 use spinning_top::Spinlock;
 
+use crate::serial::Serial;
+
 const VSPACE: usize = 14;
 
 pub static LOGGER: LockedLogger = LockedLogger::new();
 
-pub struct LockedLogger(Spinlock<Logger<1024>>);
+pub struct LockedLogger {
+    logger: Spinlock<Logger<1024>>,
+    serial: Spinlock<Serial>,
+}
 
 impl LockedLogger {
     pub const fn new() -> Self {
-        LockedLogger(Spinlock::new(Logger::new()))
+        LockedLogger {
+            logger: Spinlock::new(Logger::new()),
+            serial: Spinlock::new(Serial::new()),
+        }
     }
 
     pub unsafe fn force_unlock(&self) {
-        self.0.force_unlock();
+        self.logger.force_unlock();
+        self.serial.force_unlock();
     }
 
     pub fn attach_framebuffer(&self, framebuffer: &'static mut [u8], info: FrameBufferInfo) {
-        self.0.lock().attach_framebuffer(framebuffer, info)
+        self.logger.lock().attach_framebuffer(framebuffer, info)
     }
 }
 
@@ -31,8 +40,8 @@ impl Log for LockedLogger {
     fn log(&self, record: &Record) {
         use core::fmt::Write;
         x86_64::instructions::interrupts::without_interrupts(|| {
-            let mut logger = self.0.lock();
-            writeln!(logger, "[{}] {}", record.level(), record.args()).unwrap();
+            writeln!(self.serial.lock(), "[{}] {}", record.level(), record.args()).unwrap();
+            writeln!(self.logger.lock(), "[{}] {}", record.level(), record.args()).unwrap();
         });
     }
 
