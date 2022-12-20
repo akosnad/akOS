@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 use bootloader_api::info::MemoryRegions;
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
-use x86_64::{structures::paging::{OffsetPageTable, PageTable, PhysFrame, Mapper, PageTableFlags, mapper::MapToError, Size4KiB}, VirtAddr, PhysAddr};
+use x86_64::{structures::paging::{OffsetPageTable, PageTable, PhysFrame, Mapper, PageTableFlags, mapper::{MapToError, UnmapError}, Size4KiB, Page, FrameAllocator, FrameDeallocator}, VirtAddr, PhysAddr};
 
 use self::paging::{BootInfoFrameAllocator, KernelFrameAllocator};
 
@@ -25,6 +25,19 @@ pub struct MemoryManager<'a> {
 }
 
 impl MemoryManager<'_> {
+    pub fn map(&self, page: Page) -> Result<PhysFrame, MapToError<Size4KiB>> {
+        let frame = self.frame_allocator.lock().allocate_frame()
+            .expect("cannot allocate frame");
+        unsafe {
+            self.page_table.lock().map_to(
+                page,
+                frame,
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+                self.frame_allocator.lock().deref_mut()
+                )?.flush();
+        }
+        Ok(frame)
+    }
     pub fn identity_map(&self, frame: PhysFrame) -> Result<(), MapToError<Size4KiB>> {
         unsafe {
         self.page_table.lock().identity_map(
@@ -38,6 +51,13 @@ impl MemoryManager<'_> {
     pub fn identity_map_address(&self, physical_address: u64) -> Result<(), MapToError<Size4KiB>> {
         self.identity_map(PhysFrame::containing_address(PhysAddr::new(physical_address)))
     }
+    pub fn unmap(&self, page: Page) -> Result<(), UnmapError> {
+        let frame = self.page_table.lock().unmap(page).and_then(|p| { p.1.flush(); Ok(p.0) })?;
+        unsafe {
+            self.frame_allocator.lock().deallocate_frame(frame);
+        }
+        Ok(())
+    }
 }
 
 impl AcpiHandler for MemoryManager<'_> {
@@ -49,11 +69,11 @@ impl AcpiHandler for MemoryManager<'_> {
         // TODO: don't necessarily identity map the requested addresses, this could be a bit
         // more smarter. It also panics if it cannot map the address
         for frame in range.into_iter() {
-            self.identity_map(frame).or_else(|e| match e { 
+            self.identity_map(frame).or_else(|e| match e {
                 MapToError::PageAlreadyMapped(_) => Ok(()), // if the page is already mapped, we
                                                             // leave it alone for now
                 _=> Err(()),
-            }).unwrap();
+            }).expect("failed to map page for acpi table parsing");
         }
         acpi::PhysicalMapping::new(
             start_address.as_u64() as usize,
@@ -64,9 +84,13 @@ impl AcpiHandler for MemoryManager<'_> {
         )
     }
 
-    fn unmap_physical_region<T>(_region: &acpi::PhysicalMapping<Self, T>) {
-        // TODO: can't unmap a memory region yet,
-        // it's not a big problem yet..
+    fn unmap_physical_region<T>(region: &acpi::PhysicalMapping<Self, T>) {
+        let mm = region.handler();
+        mm.unmap(
+            Page::containing_address(
+                VirtAddr::new(region.virtual_start().as_ptr() as u64)
+                )
+            ).expect("should be able to unmap");
     }
 }
 

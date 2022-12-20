@@ -1,6 +1,6 @@
 use alloc::collections::VecDeque;
 use bootloader_api::info::{MemoryRegions as BootMemoryRegions, MemoryRegionKind as BootMemoryRegionKind};
-use x86_64::{structures::paging::{PhysFrame, Size4KiB, FrameAllocator}, PhysAddr};
+use x86_64::{structures::paging::{PhysFrame, Size4KiB, FrameAllocator, FrameDeallocator}, PhysAddr};
 
 pub struct BootInfoFrameAllocator {
     memory_regions: &'static BootMemoryRegions,
@@ -56,28 +56,56 @@ struct MemoryRegion {
 
 #[derive(Debug)]
 pub struct KernelFrameAllocator {
-    regions: VecDeque<MemoryRegion>,
+    free_usable_regions: VecDeque<MemoryRegion>,
+    free_reserved_regions: VecDeque<MemoryRegion>,
+    usable_regions: VecDeque<MemoryRegion>,
+    reserved_regions: VecDeque<MemoryRegion>,
     next: usize,
 }
 
 impl KernelFrameAllocator {
     pub fn init(boot_frame_allocator: &BootInfoFrameAllocator) -> Self {
-        let mut regions = VecDeque::new();
-        for region in boot_frame_allocator.memory_regions.iter().filter(|r| r.kind == BootMemoryRegionKind::Usable) {
-            regions.push_back(MemoryRegion {
-                start: region.start,
-                end: region.end,
-            });
+        let mut usable_regions = VecDeque::new();
+        let mut reserved_regions = VecDeque::new();
+        for region in boot_frame_allocator.memory_regions.iter() {
+            match region.kind {
+                BootMemoryRegionKind::Usable => {
+                    usable_regions.push_back(MemoryRegion {
+                        start: region.start,
+                        end: region.end,
+                    });
+                },
+                _ => {
+                    reserved_regions.push_back(MemoryRegion {
+                        start: region.start,
+                        end: region.end,
+                    });
+                },
+            }
+        }
+
+        for region in reserved_regions.iter() {
+            log::trace!("reserved memory region: {:x?}", region);
+        }
+
+        let mut free_usable_regions = VecDeque::new();
+        for region in boot_frame_allocator.usable_frames().skip(boot_frame_allocator.used_frame_count()) {
+            let start = region.start_address().as_u64();
+            let end = start + region.size();
+            free_usable_regions.push_back(MemoryRegion { start, end });
         }
 
         Self {
-            regions,
+            free_usable_regions,
+            free_reserved_regions: VecDeque::new(),
+            usable_regions,
+            reserved_regions,
             next: boot_frame_allocator.used_frame_count(),
         }
     }
 
     fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> + '_ {
-        self.regions.iter()
+        self.usable_regions.iter()
             .map(|r| r.start..r.end)
             .flat_map(|r| r.step_by(4096))
             .map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
@@ -89,5 +117,11 @@ unsafe impl FrameAllocator<Size4KiB> for KernelFrameAllocator {
         let frame = self.usable_frames().nth(self.next);
         self.next += 1;
         frame
+    }
+}
+
+impl FrameDeallocator<Size4KiB> for KernelFrameAllocator {
+    unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {
+        //TODO
     }
 }
