@@ -1,6 +1,6 @@
-use acpi::AcpiTables;
+use acpi::{AcpiTables, PlatformInfo};
 
-pub fn init(rsdp_addr: u64) {
+pub fn init(rsdp_addr: u64) -> PlatformInfo {
     log::trace!("rsdp at {:x}", rsdp_addr);
     let mm = crate::mem::get_memory_manager();
 
@@ -10,5 +10,6 @@ pub fn init(rsdp_addr: u64) {
     let info = acpi_tables.platform_info().unwrap_or_else(|e| panic!("couldn't get platform information from ACPI: {:#?}", e));
     log::trace!("power profile: {:#x?}", info.power_profile);
     log::trace!("interrupt model: {:#x?}", info.interrupt_model);
-    log::trace!("boot processor: {:#x?}", info.processor_info.unwrap().boot_processor);
+    log::trace!("boot processor: {:#x?}", info.processor_info.as_ref().unwrap().boot_processor);
+    info
 }

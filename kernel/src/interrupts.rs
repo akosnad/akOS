@@ -1,3 +1,4 @@
+use acpi::InterruptModel;
 use conquer_once::spin::OnceCell;
 use spin::{self, Mutex};
 use x2apic::{lapic::LocalApic, ioapic::{RedirectionTableEntry, IrqFlags, IoApic}};
@@ -70,14 +71,13 @@ impl Into<usize> for IoApicTableIndex {
     }
 }
 
-unsafe fn init_lapic() {
-    let xapic_base = x2apic::lapic::xapic_base();
+unsafe fn init_lapic(base_address: u64) {
     let mm = crate::mem::get_memory_manager();
-    mm.identity_map_address(xapic_base)
+    mm.identity_map_address(base_address)
                     .unwrap_or_else(|e| panic!("can't map APIC base address: {:#?}", e));
 
     let mut lapic = x2apic::lapic::LocalApicBuilder::new()
-        .set_xapic_base(xapic_base)
+        .set_xapic_base(base_address)
         .spurious_vector(0xff)
         .error_vector(InterruptIndex::ApicError.into())
         .timer_vector(InterruptIndex::Timer.into())
@@ -89,16 +89,15 @@ unsafe fn init_lapic() {
     LAPIC.init_once(|| { spin::Mutex::new(lapic) });
 }
 
-unsafe fn init_io_apic() {
+unsafe fn init_io_apic(base_address: u64) {
     let lapic = LAPIC.get().expect("should have the LAPIC initialized").lock();
-    const IO_APIC_ADDRESS: u64 = 0xfec00000; // TODO: get this from the ACPI tables
 
     let mm = crate::mem::get_memory_manager();
-    mm.identity_map_address(IO_APIC_ADDRESS)
+    mm.identity_map_address(base_address)
             .unwrap_or_else(|e| panic!("can't map IO-APIC base address: {:#?}", e));
 
 
-    let mut ioapic = x2apic::ioapic::IoApic::new(IO_APIC_ADDRESS);
+    let mut ioapic = x2apic::ioapic::IoApic::new(base_address);
     ioapic.init(IOAPIC_INTERRUPT_INDEX_OFFSET);
     log::debug!("ioapic id: {}, version: {}", ioapic.id(), ioapic.version());
 
@@ -113,12 +112,18 @@ unsafe fn init_io_apic() {
     IOAPIC.init_once(|| Mutex::new(ioapic));
 }
 
-pub fn init() {
+pub fn init(interrupt_model: Option<InterruptModel>) {
     log::trace!("loading IDT at: {:p}", &IDT);
     IDT.load();
-    unsafe {
-        init_lapic();
-        init_io_apic();
+    if let Some(InterruptModel::Apic(model)) = interrupt_model {
+        unsafe {
+            init_lapic(model.local_apic_address);
+            for ioapic in model.io_apics {
+                init_io_apic(ioapic.address as u64);
+            }
+        }
+    } else {
+        panic!("unsupported interrupt model, no APIC was found");
     }
     x86_64::instructions::interrupts::enable();
 }

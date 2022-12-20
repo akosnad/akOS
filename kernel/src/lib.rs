@@ -2,6 +2,8 @@
 #![feature(abi_x86_interrupt)]
 #![feature(anonymous_lifetime_in_impl_trait)]
 
+use ::acpi::PlatformInfo;
+
 extern crate alloc;
 
 pub mod util;
@@ -13,9 +15,9 @@ pub mod interrupts;
 pub mod acpi;
 pub mod serial;
 
-pub fn init() {
+pub fn init(platform_info: Option<PlatformInfo>) {
     gdt::init();
-    interrupts::init();
+    interrupts::init(platform_info.and_then(|i| Some(i.interrupt_model)));
 }
 
 pub fn halt() -> ! {
@@ -23,4 +25,3 @@ pub fn halt() -> ! {
         x86_64::instructions::hlt();
     }
 }
-

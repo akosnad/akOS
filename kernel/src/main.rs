@@ -39,13 +39,14 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     logger::LOGGER.attach_framebuffer(fb_buffer, fb_info);
     log::debug!("switched to framebuffer");
 
-    if let Some(rsdp_addr) = boot_info.rsdp_addr.into_option() {
-        ak_os_kernel::acpi::init(rsdp_addr);
+    let acpi_info = if let Some(rsdp_addr) = boot_info.rsdp_addr.into_option() {
+        Some(ak_os_kernel::acpi::init(rsdp_addr))
     } else {
         log::warn!("no RSDP address provided for the kernel, ACPI initialization not possible");
-    }
+        None
+    };
 
-    ak_os_kernel::init();
+    ak_os_kernel::init(acpi_info);
 
     let mut executor = Executor::new();
     executor.spawn(Task::new_with_name("keyboard", keyboard::process()));
