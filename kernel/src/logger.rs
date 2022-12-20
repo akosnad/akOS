@@ -1,22 +1,25 @@
 use log::{Log, Record, Metadata};
 use bootloader_api::info::{FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{get_bitmap, get_bitmap_width, BitmapChar, BitmapHeight, FontWeight};
-use conquer_once::spin::OnceCell;
 use spinning_top::Spinlock;
 
 const VSPACE: usize = 14;
 
-pub static LOGGER: OnceCell<LockedLogger> = OnceCell::uninit();
+pub static LOGGER: LockedLogger = LockedLogger::new();
 
-pub struct LockedLogger(Spinlock<Logger>);
+pub struct LockedLogger(Spinlock<Logger<1024>>);
 
 impl LockedLogger {
-    pub fn new(framebuffer: &'static mut [u8], info: FrameBufferInfo) -> Self {
-        LockedLogger(Spinlock::new(Logger::new(framebuffer, info)))
+    pub const fn new() -> Self {
+        LockedLogger(Spinlock::new(Logger::new()))
     }
 
     pub unsafe fn force_unlock(&self) {
         self.0.force_unlock();
+    }
+
+    pub fn attach_framebuffer(&self, framebuffer: &'static mut [u8], info: FrameBufferInfo) {
+        self.0.lock().attach_framebuffer(framebuffer, info)
     }
 }
 
@@ -35,14 +38,64 @@ impl Log for LockedLogger {
 
     fn flush(&self) {}
 }
-pub struct Logger {
+
+pub enum Logger<const N: usize> {
+    MemoryBacked(MemLogger<N>),
+    FramebufferBacked(FbLogger),
+}
+
+impl<const N: usize> Logger<N> {
+    pub const fn new() -> Self {
+        Self::MemoryBacked(MemLogger::new())
+    }
+    pub fn attach_framebuffer(&mut self, framebuffer: &'static mut [u8], info: FrameBufferInfo) {
+        match self {
+            Logger::MemoryBacked(l) => {
+                let mut fb = FbLogger::new(framebuffer, info);
+                for c in l.buf.iter().filter(|c| c.is_some()).map(|c| c.unwrap()) {
+                    fb.write(c);
+                }
+                *self = Logger::FramebufferBacked(fb)
+            },
+            Logger::FramebufferBacked(_) => return,
+        }
+    }
+
+    fn write(&mut self, c: char) {
+        match self {
+            Logger::MemoryBacked(l) => l.write(c),
+            Logger::FramebufferBacked(l) => l.write(c),
+        }
+    }
+}
+
+pub struct MemLogger<const N: usize> {
+    buf: [Option<char>; N],
+    next: usize,
+}
+impl<const N: usize> MemLogger<N> {
+    pub const fn new() -> Self {
+        Self {
+            buf: [None; N],
+            next: 0,
+        }
+    }
+
+    pub fn write(&mut self, c: char) {
+        if self.next == N { return; }
+        self.buf[self.next] = Some(c);
+        self.next += 1;
+    }
+}
+
+pub struct FbLogger {
     framebuffer: &'static mut [u8],
     info: FrameBufferInfo,
     x: usize,
     y: usize,
 }
 
-impl Logger {
+impl FbLogger {
     pub fn new(framebuffer: &'static mut [u8], info: FrameBufferInfo) -> Self {
         let mut logger = Self {
             framebuffer,
@@ -122,10 +175,10 @@ impl Logger {
     }
 }
 
-unsafe impl Send for Logger {}
-unsafe impl Sync for Logger {}
+unsafe impl<const N: usize> Send for Logger<N> {}
+unsafe impl<const N: usize> Sync for Logger<N> {}
 
-impl core::fmt::Write for Logger {
+impl<const N: usize> core::fmt::Write for Logger<N> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         for c in s.chars() {
             self.write(c);

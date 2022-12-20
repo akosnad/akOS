@@ -84,7 +84,7 @@ unsafe fn init_lapic() {
         .build()
         .unwrap_or_else(|e| panic!("{}", e));
     lapic.enable();
-    log::trace!("apic id: {}, version: {}", lapic.id(), lapic.version());
+    log::debug!("apic id: {}, version: {}", lapic.id(), lapic.version());
 
     LAPIC.init_once(|| { spin::Mutex::new(lapic) });
 }
@@ -100,7 +100,7 @@ unsafe fn init_io_apic() {
 
     let mut ioapic = x2apic::ioapic::IoApic::new(IO_APIC_ADDRESS);
     ioapic.init(IOAPIC_INTERRUPT_INDEX_OFFSET);
-    log::trace!("ioapic id: {}, version: {}", ioapic.id(), ioapic.version());
+    log::debug!("ioapic id: {}, version: {}", ioapic.id(), ioapic.version());
 
     let mut entry = RedirectionTableEntry::default();
     entry.set_mode(x2apic::ioapic::IrqMode::Fixed);

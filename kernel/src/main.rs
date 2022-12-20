@@ -21,6 +21,14 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
 entry_point!(main, config = &BOOTLOADER_CONFIG);
 
 fn main(boot_info: &'static mut BootInfo) -> ! {
+    log::set_logger(&logger::LOGGER).expect("failed to setup logger");
+    log::set_max_level(log::LevelFilter::Trace);
+    #[cfg(debug_assertions)]
+    {
+        log::set_max_level(log::LevelFilter::Trace);
+    }
+    log::info!("Hello world");
+
     let physical_memory_offset = VirtAddr::new(boot_info.physical_memory_offset.into_option().expect("no physical_memory_offset"));
     unsafe { mem::init(physical_memory_offset, &boot_info.memory_regions) };
 
@@ -28,16 +36,8 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     let fb_info = fb.info();
     let fb_array = fb.buffer_mut();
     let fb_buffer = unsafe { core::slice::from_raw_parts_mut(fb_array.as_mut_ptr(), fb_array.len()) };
-
-    let logger = logger::LOGGER.get_or_init(move || logger::LockedLogger::new(fb_buffer, fb_info));
-    log::set_logger(logger).expect("failed to setup logger");
-    log::set_max_level(log::LevelFilter::Trace);
-    #[cfg(debug_assertions)]
-    {
-        log::set_max_level(log::LevelFilter::Trace);
-    }
-
-    log::info!("Hello world");
+    logger::LOGGER.attach_framebuffer(fb_buffer, fb_info);
+    log::debug!("switched to framebuffer");
 
     if let Some(rsdp_addr) = boot_info.rsdp_addr.into_option() {
         ak_os_kernel::acpi::init(rsdp_addr);
@@ -68,9 +68,7 @@ async fn example_task() {
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    if let Some(logger) = logger::LOGGER.get() {
-        unsafe { logger.force_unlock(); }
-    }
+    let _ = unsafe { logger::LOGGER.force_unlock() };
     log::error!("{}", info);
     x86_64::instructions::interrupts::disable();
     ak_os_kernel::halt();
