@@ -21,10 +21,10 @@ entry_point!(main, config = &BOOTLOADER_CONFIG);
 
 fn main(boot_info: &'static mut BootInfo) -> ! {
     println!(
-        "akOS ({}) {} {} at {}\n{}\n{}",
+        "akOS kernel ({} {}) {} at {}\n{}\n{}",
         env!("CARGO_PKG_VERSION"),
-        env!("BUILD_TARGET"),
         env!("PROFILE"),
+        env!("BUILD_TARGET"),
         env!("BUILD_DATE"),
         env!("RUSTC_VERSION"),
         env!("CARGO_VERSION")

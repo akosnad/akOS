@@ -53,6 +53,15 @@ struct MemoryRegion {
     start: u64,
     end: u64,
 }
+impl MemoryRegion {
+    fn size(&self) -> u64 {
+        self.end - self.start
+    }
+    fn overlaps(&self, other: &Self) -> bool {
+        (self.start > other.start && self.end < other.end) ||
+        (other.start > self.start && other.end < self.end)
+    }
+}
 
 #[derive(Debug)]
 pub struct KernelFrameAllocator {
@@ -60,7 +69,6 @@ pub struct KernelFrameAllocator {
     free_reserved_regions: VecDeque<MemoryRegion>,
     usable_regions: VecDeque<MemoryRegion>,
     reserved_regions: VecDeque<MemoryRegion>,
-    next: usize,
 }
 
 impl KernelFrameAllocator {
@@ -89,10 +97,23 @@ impl KernelFrameAllocator {
         }
 
         let mut free_usable_regions = VecDeque::new();
-        for region in boot_frame_allocator.usable_frames().skip(boot_frame_allocator.used_frame_count()) {
-            let start = region.start_address().as_u64();
-            let end = start + region.size();
-            free_usable_regions.push_back(MemoryRegion { start, end });
+        let mut iter = boot_frame_allocator.usable_frames().skip(boot_frame_allocator.used_frame_count()).peekable();
+        while let Some(frame) = iter.next() {
+            let start = frame.start_address().as_u64();
+            let mut end = start + frame.size();
+            while let Some(next) = iter.peek() {
+                let next_start = next.start_address().as_u64();
+                let next_end = next_start + next.size();
+                if end == next_start {
+                    end = next_end;
+                    iter.next();
+                    continue;
+                }
+                break;
+            }
+            let region = MemoryRegion { start, end };
+            log::trace!("free usable memory region: {:x?}", region);
+            free_usable_regions.push_back(region);
         }
 
         Self {
@@ -100,23 +121,22 @@ impl KernelFrameAllocator {
             free_reserved_regions: VecDeque::new(),
             usable_regions,
             reserved_regions,
-            next: boot_frame_allocator.used_frame_count(),
         }
-    }
-
-    fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> + '_ {
-        self.usable_regions.iter()
-            .map(|r| r.start..r.end)
-            .flat_map(|r| r.step_by(4096))
-            .map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
     }
 }
 
 unsafe impl FrameAllocator<Size4KiB> for KernelFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        let frame = self.usable_frames().nth(self.next);
-        self.next += 1;
-        frame
+        if let Some(region) = self.free_usable_regions.pop_front() {
+            let frame: PhysFrame<Size4KiB> = PhysFrame::containing_address(PhysAddr::new(region.start));
+            let frame_end = frame.start_address().as_u64() + frame.size();
+            let remaining_free_region = MemoryRegion { start: frame_end, end: region.end };
+            if remaining_free_region.size() > 0 {
+                self.free_usable_regions.push_front(remaining_free_region);
+            }
+            return Some(frame);
+        }
+        None
     }
 }
 
