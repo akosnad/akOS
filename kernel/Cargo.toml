@@ -6,9 +6,9 @@ edition = "2021"
 [dependencies]
 log = "0.4"
 x86_64 = "0.14"
-bootloader_api = { git = "https://github.com/rust-osdev/bootloader", rev = "6c01f45ca" }
+bootloader_api = "0.11"
 linked_list_allocator = "0.10"
-noto-sans-mono-bitmap = "0.1"
+noto-sans-mono-bitmap = "0.2"
 spinning_top = "0.2"
 conquer-once = { version = "0.3", default-features = false }
 crossbeam-queue = { version = "0.3", default-features = false, features = ["alloc"] }
@@ -20,3 +20,6 @@ x86 = "0.52"
 spin = "0.9"
 acpi = "4.1"
 uart_16550 = "0.2"
+
+[build-dependencies]
+chrono = "0.4"

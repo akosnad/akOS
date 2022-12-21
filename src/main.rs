@@ -6,10 +6,10 @@ fn main() {
     let bios: bool = args.contains(&String::from("-b")) || args.contains(&String::from("--bios"));
     
     if bios {
-        let bios_image_path = Path::new(env!("BIOS_GPT_PATH"));
+        let bios_image_path = Path::new(env!("BIOS_PATH"));
         run_in_qemu(bios_image_path, None, debug);
     } else {
-        let uefi_image_path = Path::new(env!("UEFI_GPT_PATH"));
+        let uefi_image_path = Path::new(env!("UEFI_PATH"));
         let omvf_path = &Path::new("OVMF-pure-efi.fd");
         run_in_qemu(uefi_image_path, Some(omvf_path), debug);
     }

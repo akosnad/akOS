@@ -1,14 +1,13 @@
 #![feature(alloc_error_handler)]
-#![feature(panic_can_unwind)]
-#![feature(generators)]
 #![no_std]
 #![no_main]
 
 extern crate alloc;
 
 use bootloader_api::{entry_point, BootInfo, BootloaderConfig, config::Mapping};
-use ak_os_kernel::{mem, logger, task::{Task, executor::Executor, keyboard}};
+use ak_os_kernel::{mem, logger, task::{Task, executor::Executor, keyboard}, println};
 use x86_64::VirtAddr;
+use core::env;
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -21,13 +20,23 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
 entry_point!(main, config = &BOOTLOADER_CONFIG);
 
 fn main(boot_info: &'static mut BootInfo) -> ! {
+    println!(
+        "akOS ({}) {} {} at {}\n{}\n{}",
+        env!("CARGO_PKG_VERSION"),
+        env!("BUILD_TARGET"),
+        env!("PROFILE"),
+        env!("BUILD_DATE"),
+        env!("RUSTC_VERSION"),
+        env!("CARGO_VERSION")
+    );
+
     log::set_logger(&logger::LOGGER).expect("failed to setup logger");
     log::set_max_level(log::LevelFilter::Info);
     #[cfg(debug_assertions)]
     {
         log::set_max_level(log::LevelFilter::Trace);
     }
-    log::info!("Hello world");
+    log::debug!("hello from logger");
 
     let physical_memory_offset = VirtAddr::new(boot_info.physical_memory_offset.into_option().expect("no physical_memory_offset"));
     unsafe { mem::init(physical_memory_offset, &boot_info.memory_regions) };

@@ -12,19 +12,18 @@ fn main() {
         PathBuf::from(path)
     };
 
-    let fat_path = {
+    let disk_path = {
         let path = var("OUT_DIR").expect("no target dir");
-        PathBuf::from(path).with_file_name("akOS.fat")
+        PathBuf::from(path).with_file_name("akOS.img")
     };
-    let gpt_path = fat_path.with_file_name("akOS.gpt");
-    let gpt_path_bios = fat_path.with_file_name("akOS_bios.gpt");
+    let disk_path_bios = disk_path.with_file_name("akOS_bios.img");
 
 
-    bootloader::create_boot_partition(&kernel_path, &fat_path).expect("failed to create boot partition");
-    bootloader::create_uefi_disk_image(&fat_path, &gpt_path).unwrap();
-    bootloader::create_bios_disk_image(&fat_path, &gpt_path_bios).unwrap();
+    let uefi_boot = bootloader::UefiBoot::new(&kernel_path);
+    uefi_boot.create_disk_image(&disk_path).expect("failed to create boot partition");
+    let bios_boot= bootloader::BiosBoot::new(&kernel_path);
+    bios_boot.create_disk_image(&disk_path_bios).expect("failed to create boot partition");
 
-    println!("cargo:rustc-env=UEFI_FAT_PATH={}", fat_path.display());
-    println!("cargo:rustc-env=UEFI_GPT_PATH={}", gpt_path.display());
-    println!("cargo:rustc-env=BIOS_GPT_PATH={}", gpt_path_bios.display());
+    println!("cargo:rustc-env=UEFI_PATH={}", disk_path.display());
+    println!("cargo:rustc-env=BIOS_PATH={}", disk_path_bios.display());
 }

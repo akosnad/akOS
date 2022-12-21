@@ -1,16 +1,17 @@
 use log::{Log, Record, Metadata};
 use bootloader_api::info::{FrameBufferInfo, PixelFormat};
-use noto_sans_mono_bitmap::{get_bitmap, get_bitmap_width, BitmapChar, BitmapHeight, FontWeight};
+use noto_sans_mono_bitmap::{get_raster, get_raster_width, RasterizedChar, RasterHeight, FontWeight};
 use spinning_top::Spinlock;
 
 use crate::serial::Serial;
 
-const VSPACE: usize = 14;
+const VSPACE: usize = 16;
+const LOG_BUFFER_SIZE: usize = 1024;
 
 pub static LOGGER: LockedLogger = LockedLogger::new();
 
 pub struct LockedLogger {
-    logger: Spinlock<Logger<1024>>,
+    logger: Spinlock<Logger<LOG_BUFFER_SIZE>>,
     serial: Spinlock<Serial>,
 }
 
@@ -29,6 +30,12 @@ impl LockedLogger {
 
     pub fn attach_framebuffer(&self, framebuffer: &'static mut [u8], info: FrameBufferInfo) {
         self.logger.lock().attach_framebuffer(framebuffer, info)
+    }
+    fn lock(&self) -> spinning_top::lock_api::MutexGuard<spinning_top::RawSpinlock, Logger<LOG_BUFFER_SIZE>> {
+        self.logger.lock()
+    }
+    fn lock_serial(&self) -> spinning_top::lock_api::MutexGuard<spinning_top::RawSpinlock, Serial> {
+        self.serial.lock()
     }
 }
 
@@ -139,18 +146,18 @@ impl FbLogger {
                 if self.x >= self.width() {
                     self.newline();
                 }
-                const BITMAP_WIDTH: usize = get_bitmap_width(FontWeight::Regular, BitmapHeight::Size14);
+                const BITMAP_WIDTH: usize = get_raster_width(FontWeight::Regular, RasterHeight::Size16);
                 if self.y >= (self.height() - BITMAP_WIDTH) {
                     self.clear();
                 }
-                let bitmap_char = get_bitmap(c, FontWeight::Regular, BitmapHeight::Size14).unwrap();
+                let bitmap_char = get_raster(c, FontWeight::Regular, RasterHeight::Size16).unwrap();
                 self.write_rendered(bitmap_char);
             }
         }
     }
 
-    fn write_rendered(&mut self, c: BitmapChar) {
-        for (y, row) in c.bitmap().iter().enumerate() {
+    fn write_rendered(&mut self, c: RasterizedChar) {
+        for (y, row) in c.raster().iter().enumerate() {
             for (x, byte) in row.iter().enumerate() {
                 self.set(self.x + x, self.y + y, *byte);
             }
@@ -194,4 +201,36 @@ impl<const N: usize> core::fmt::Write for Logger<N> {
         }
         Ok(())
     }
+}
+
+#[doc(hidden)]
+pub fn _print(args: ::core::fmt::Arguments) {
+    use core::fmt::Write;
+    use x86_64::instructions::interrupts;
+
+    interrupts::without_interrupts(|| {
+        LOGGER.lock()
+            .write_fmt(args)
+            .expect("print failed");
+
+        LOGGER.lock_serial()
+            .write_fmt(args)
+            .expect("print to serial failed");
+    });
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => {
+        $crate::logger::_print(format_args!($($arg)*));
+    };
+}
+
+#[macro_export]
+macro_rules! println {
+    () => { $crate::print!("\n"); };
+    ($fmt:expr) => { $crate::print!(concat!($fmt, "\n")); };
+    ($fmt:expr, $($arg:tt)*) => {
+        $crate::print!(concat!($fmt, "\n"), $($arg)*);
+    };
 }

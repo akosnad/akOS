@@ -10,7 +10,7 @@ members = [
 
 [build-dependencies]
 ak_os-kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }
-bootloader = { git = "https://github.com/rust-osdev/bootloader", rev = "6c01f45ca" }
+bootloader = "0.11"
 
 [dependencies]
 build-time = "0.1"
