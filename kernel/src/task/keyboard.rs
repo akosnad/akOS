@@ -55,5 +55,8 @@ pub async fn process() {
     let mut scancodes = ScancodeStream::new();
     while let Some(sc) = scancodes.next().await {
         log::info!("{}", sc);
+        if sc == 1 {
+            super::executor::Executor::dump_state();
+        }
     }
 }

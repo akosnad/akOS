@@ -3,6 +3,8 @@ use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
 use crossbeam_queue::ArrayQueue;
 use core::task::{Waker, Context, Poll};
 
+static mut DUMP_STATE: bool = false;
+
 pub struct Executor {
     tasks: BTreeMap<TaskId, Task>,
     task_queue: Arc<ArrayQueue<TaskId>>,
@@ -70,9 +72,25 @@ impl Executor {
 
     pub fn run(&mut self) -> ! {
         loop {
+            unsafe {
+                if DUMP_STATE { self.dump_state_inner(); }
+            }
             self.run_ready_tasks();
             self.sleep_if_idle();
         }
+    }
+
+    fn dump_state_inner(&self) {
+        log::trace!(
+            "executor state dump:\n{:#?}\n{:#?}\n{:#?}",
+            self.tasks,
+            self.task_queue,
+            self.waker_cache
+        );
+        unsafe { DUMP_STATE = false; }
+    }
+    pub fn dump_state() {
+        unsafe { DUMP_STATE = true; }
     }
 }
 
