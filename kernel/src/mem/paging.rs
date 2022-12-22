@@ -1,6 +1,6 @@
-use alloc::collections::VecDeque;
+use alloc::collections::BTreeSet;
 use bootloader_api::info::{MemoryRegions as BootMemoryRegions, MemoryRegionKind as BootMemoryRegionKind};
-use x86_64::{structures::paging::{PhysFrame, Size4KiB, FrameAllocator, FrameDeallocator}, PhysAddr};
+use x86_64::{structures::paging::{PhysFrame, Size4KiB, FrameAllocator, FrameDeallocator, PageSize}, PhysAddr};
 
 pub struct BootInfoFrameAllocator {
     memory_regions: &'static BootMemoryRegions,
@@ -48,43 +48,146 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct MemoryRegion {
     start: u64,
     end: u64,
 }
 impl MemoryRegion {
+    #[inline]
     fn size(&self) -> u64 {
         self.end - self.start
     }
+
+    #[inline]
     fn overlaps(&self, other: &Self) -> bool {
         (self.start > other.start && self.end < other.end) ||
         (other.start > self.start && other.end < self.end)
+    }
+
+    #[inline]
+    fn contains(&self, other: &Self) -> bool {
+        self.start <= other.start && self.end >= other.end
+    }
+}
+impl core::ops::RangeBounds<u64> for MemoryRegion {
+    fn start_bound(&self) -> core::ops::Bound<&u64> {
+        core::ops::Bound::Included(&self.start)
+    }
+
+    fn end_bound(&self) -> core::ops::Bound<&u64> {
+        core::ops::Bound::Excluded(&self.end)
+    }
+}
+impl core::fmt::Debug for MemoryRegion {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!("0x{:x} - 0x{:x}", self.start, self.end))
+    }
+}
+
+#[derive(Debug)]
+struct MemoryRegions {
+    regions: BTreeSet<MemoryRegion>,
+}
+impl MemoryRegions {
+    fn new() -> Self {
+        Self {
+            regions: BTreeSet::new(),
+        }
+    }
+
+    fn add(&mut self, region: MemoryRegion) {
+        if self.regions.is_empty() {
+            self.regions.insert(region);
+            return;
+        }
+
+        for r in self.regions.iter() {
+            if r.contains(&region) {
+                // already covered by larger existing region
+                return;
+            }
+            if r.overlaps(&region) {
+                if region.start < r.start {
+                    // we're under the existing region, extend it down
+                    self.regions.replace(MemoryRegion { start: region.start, end: r.end });
+                } else if region.end > r.end {
+                    // we're over the existing region, extend it up
+                    self.regions.replace(MemoryRegion { start: r.start, end: region.end });
+                }
+                return;
+            }
+        }
+
+        // at this point we found no intersections
+        self.regions.insert(region);
+    }
+
+    fn cut(&mut self, region: MemoryRegion) -> Result<(), ()> {
+        let mut containing_region = None;
+        for r in self.regions.iter() {
+            if r.contains(&region) {
+                containing_region = Some(*r);
+                break;
+            }
+        }
+
+        if let Some(containing_region) = containing_region {
+            self.regions.remove(&containing_region);
+
+            let lower = MemoryRegion { start: containing_region.start, end: region.start };
+            let upper = MemoryRegion { start: region.end, end: containing_region.end };
+            if lower.size() > 0 { self.add(lower); }
+            if upper.size() > 0 { self.add(upper); }
+
+            return Ok(());
+        }
+        Err(())
+    }
+
+    fn lowest(&mut self) -> Option<&MemoryRegion> {
+        self.regions.first()
+    }
+
+    fn contains(&self, region: MemoryRegion) -> bool {
+        for r in self.regions.iter() {
+            if r.contains(&region) {
+                return true;
+            }
+        }
+        false
+    }
+
+    #[cfg(feature = "dbg-mem")]
+    fn dump_state(&self) {
+        for r in self.regions.iter() {
+            log::trace!("{:?}", r);
+        }
     }
 }
 
 #[derive(Debug)]
 pub struct KernelFrameAllocator {
-    free_usable_regions: VecDeque<MemoryRegion>,
-    free_reserved_regions: VecDeque<MemoryRegion>,
-    usable_regions: VecDeque<MemoryRegion>,
-    reserved_regions: VecDeque<MemoryRegion>,
+    free_usable_regions: MemoryRegions,
+    free_reserved_regions: MemoryRegions,
+    usable_regions: MemoryRegions,
+    reserved_regions: MemoryRegions,
 }
 
 impl KernelFrameAllocator {
     pub fn init(boot_frame_allocator: &BootInfoFrameAllocator) -> Self {
-        let mut usable_regions = VecDeque::new();
-        let mut reserved_regions = VecDeque::new();
+        let mut usable_regions = MemoryRegions::new();
+        let mut reserved_regions = MemoryRegions::new();
         for region in boot_frame_allocator.memory_regions.iter() {
             match region.kind {
                 BootMemoryRegionKind::Usable => {
-                    usable_regions.push_back(MemoryRegion {
+                    usable_regions.add(MemoryRegion {
                         start: region.start,
                         end: region.end,
                     });
                 },
                 _ => {
-                    reserved_regions.push_back(MemoryRegion {
+                    reserved_regions.add(MemoryRegion {
                         start: region.start,
                         end: region.end,
                     });
@@ -92,11 +195,13 @@ impl KernelFrameAllocator {
             }
         }
 
-        for region in reserved_regions.iter() {
-            log::trace!("reserved memory region: {:x?}", region);
+        #[cfg(feature = "dbg-mem")]
+        {
+            log::trace!("reserved memory regions:");
+            reserved_regions.dump_state();
         }
 
-        let mut free_usable_regions = VecDeque::new();
+        let mut free_usable_regions = MemoryRegions::new();
         let mut iter = boot_frame_allocator.usable_frames().skip(boot_frame_allocator.used_frame_count()).peekable();
         while let Some(frame) = iter.next() {
             let start = frame.start_address().as_u64();
@@ -111,37 +216,58 @@ impl KernelFrameAllocator {
                 }
                 break;
             }
-            let region = MemoryRegion { start, end };
-            log::trace!("free usable memory region: {:x?}", region);
-            free_usable_regions.push_back(region);
+            free_usable_regions.add(MemoryRegion { start, end });
+        }
+
+        #[cfg(feature = "dbg-mem")]
+        {
+            log::trace!("free usable memory regions:");
+            free_usable_regions.dump_state();
         }
 
         Self {
             free_usable_regions,
-            free_reserved_regions: VecDeque::new(),
+            free_reserved_regions: MemoryRegions::new(),
             usable_regions,
             reserved_regions,
         }
     }
 }
 
-unsafe impl FrameAllocator<Size4KiB> for KernelFrameAllocator {
-    fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        if let Some(region) = self.free_usable_regions.pop_front() {
-            let frame: PhysFrame<Size4KiB> = PhysFrame::containing_address(PhysAddr::new(region.start));
+unsafe impl<T: PageSize> FrameAllocator<T> for KernelFrameAllocator {
+    fn allocate_frame(&mut self) -> Option<PhysFrame<T>> {
+        if let Some(region) = self.free_usable_regions.lowest() {
+            let frame: PhysFrame<T> = PhysFrame::containing_address(PhysAddr::new(region.start));
+
             let frame_end = frame.start_address().as_u64() + frame.size();
-            let remaining_free_region = MemoryRegion { start: frame_end, end: region.end };
-            if remaining_free_region.size() > 0 {
-                self.free_usable_regions.push_front(remaining_free_region);
-            }
+            let allocated_region = MemoryRegion { start: region.start, end: frame_end };
+            self.free_usable_regions.cut(allocated_region).ok()?;
+
+            #[cfg(feature = "dbg-mem")]
+            log::trace!("allocated frame: {:x?}", frame);
             return Some(frame);
         }
         None
     }
 }
 
-impl FrameDeallocator<Size4KiB> for KernelFrameAllocator {
-    unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {
-        //TODO
+impl<T: PageSize> FrameDeallocator<T> for KernelFrameAllocator {
+    unsafe fn deallocate_frame(&mut self, frame: PhysFrame<T>) {
+        let start = frame.start_address().as_u64();
+        let end = start + frame.size();
+        let region = MemoryRegion { start, end };
+        if self.usable_regions.contains(region) {
+            self.free_usable_regions.add(region);
+
+            #[cfg(feature = "dbg-mem")]
+            log::trace!("deallocated frame: {:x?}", frame);
+        } else if self.reserved_regions.contains(region) {
+            self.free_reserved_regions.add(region);
+
+            #[cfg(feature = "dbg-mem")]
+            log::trace!("deallocated reserved frame: {:x?}", frame);
+        } else {
+            panic!("couldn't deallocate frame: {:x?}", frame);
+        }
     }
 }
