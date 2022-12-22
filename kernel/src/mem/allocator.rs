@@ -26,7 +26,7 @@ pub fn init_heap(
     };
 
     #[cfg(feature = "dbg-mem")]
-    log::trace!("initializing heap: {:?}; with size: {:?} MiB", page_range, heap_size / 1024 / 1024);
+    log::debug!("initializing heap: {:?}; with size: {:?} MiB", page_range, heap_size / 1024 / 1024);
 
     for page in page_range {
         let frame = frame_allocator
