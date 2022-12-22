@@ -3,6 +3,12 @@ name = "ak_os-kernel"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["dbg"]
+
+dbg = ["dbg-mem"]
+dbg-mem = []
+
 [dependencies]
 log = "0.4"
 x86_64 = "0.14"

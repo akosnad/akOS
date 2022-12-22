@@ -21,13 +21,15 @@ entry_point!(main, config = &BOOTLOADER_CONFIG);
 
 fn main(boot_info: &'static mut BootInfo) -> ! {
     println!(
-        "akOS kernel ({} {}) {} at {}\n{}\n{}",
+        "akOS kernel {} ({}) {} ({})",
         env!("CARGO_PKG_VERSION"),
         env!("PROFILE"),
         env!("BUILD_TARGET"),
         env!("BUILD_DATE"),
+    );
+    println!("{}\n{}",
         env!("RUSTC_VERSION"),
-        env!("CARGO_VERSION")
+        env!("CARGO_VERSION"),
     );
 
     log::set_logger(&logger::LOGGER).expect("failed to setup logger");

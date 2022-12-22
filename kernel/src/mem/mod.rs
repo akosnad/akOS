@@ -26,6 +26,9 @@ pub struct MemoryManager<'a> {
 
 impl MemoryManager<'_> {
     pub fn map(&self, page: Page) -> Result<PhysFrame, MapToError<Size4KiB>> {
+        #[cfg(feature = "dbg-mem")]
+        log::trace!("mapping page: {:x?}", page);
+
         let frame = self.frame_allocator.lock().allocate_frame()
             .expect("cannot allocate frame");
         unsafe {
@@ -39,6 +42,9 @@ impl MemoryManager<'_> {
         Ok(frame)
     }
     pub fn identity_map(&self, frame: PhysFrame) -> Result<(), MapToError<Size4KiB>> {
+        #[cfg(feature = "dbg-mem")]
+        log::trace!("identity mapping frame: {:x?}", frame);
+
         unsafe {
         self.page_table.lock().identity_map(
             frame,
@@ -52,6 +58,9 @@ impl MemoryManager<'_> {
         self.identity_map(PhysFrame::containing_address(PhysAddr::new(physical_address)))
     }
     pub fn unmap(&self, page: Page) -> Result<(), UnmapError> {
+        #[cfg(feature = "dbg-mem")]
+        log::trace!("unmapping page: {:x?}", page);
+
         let frame = self.page_table.lock().unmap(page).and_then(|p| { p.1.flush(); Ok(p.0) })?;
         unsafe {
             self.frame_allocator.lock().deallocate_frame(frame);

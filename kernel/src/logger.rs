@@ -3,9 +3,9 @@ use bootloader_api::info::{FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, RasterizedChar, RasterHeight, FontWeight};
 use spinning_top::Spinlock;
 
-use crate::serial::Serial;
+use crate::{println, serial::Serial};
 
-const VSPACE: usize = 16;
+const VSPACE: usize = noto_sans_mono_bitmap::RasterHeight::Size16 as usize;
 const LOG_BUFFER_SIZE: usize = 1024;
 
 pub static LOGGER: LockedLogger = LockedLogger::new();
@@ -44,12 +44,29 @@ impl Log for LockedLogger {
         true
     }
 
+    #[cfg(debug_assertions)]
     fn log(&self, record: &Record) {
-        use core::fmt::Write;
-        x86_64::instructions::interrupts::without_interrupts(|| {
-            writeln!(self.serial.lock(), "[{}] {}", record.level(), record.args()).unwrap();
-            writeln!(self.logger.lock(), "[{}] {}", record.level(), record.args()).unwrap();
-        });
+        if record.file().is_some() && record.line().is_some() {
+            println!("[{}:\t{}:{}]\t{}",
+                     record.level(),
+                     record.file().unwrap(),
+                     record.line().unwrap(),
+                     record.args(),
+            );
+        } else {
+            println!("[{}] {}",
+                     record.level(),
+                     record.args(),
+            );
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    fn log(&self, record: &Record) {
+        println!("[{}] {}",
+                 record.level(),
+                 record.args(),
+        );
     }
 
     fn flush(&self) {}
@@ -143,12 +160,18 @@ impl FbLogger {
             '\n' => self.newline(),
             '\r' => self.carriage_return(),
             c => {
-                if self.x >= self.width() {
+                const TAB_SIZE: usize = 8;
+                const BITMAP_WIDTH: usize = get_raster_width(FontWeight::Regular, RasterHeight::Size16);
+
+                if self.x / BITMAP_WIDTH  >= self.width() / BITMAP_WIDTH {
                     self.newline();
                 }
-                const BITMAP_WIDTH: usize = get_raster_width(FontWeight::Regular, RasterHeight::Size16);
                 if self.y >= (self.height() - BITMAP_WIDTH) {
                     self.clear();
+                }
+                if c == '\t' {
+                    self.x += (TAB_SIZE - (self.x % TAB_SIZE)) * BITMAP_WIDTH;
+                    return;
                 }
                 let bitmap_char = get_raster(c, FontWeight::Regular, RasterHeight::Size16).unwrap();
                 self.write_rendered(bitmap_char);
@@ -209,11 +232,11 @@ pub fn _print(args: ::core::fmt::Arguments) {
     use x86_64::instructions::interrupts;
 
     interrupts::without_interrupts(|| {
-        LOGGER.lock()
+        LOGGER.lock_serial()
             .write_fmt(args)
             .expect("print failed");
 
-        LOGGER.lock_serial()
+        LOGGER.lock()
             .write_fmt(args)
             .expect("print to serial failed");
     });
