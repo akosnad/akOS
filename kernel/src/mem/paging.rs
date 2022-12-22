@@ -44,6 +44,10 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
         let frame = self.usable_frames().nth(self.next);
         self.next += 1;
+
+        #[cfg(feature = "dbg-mem")]
+        log::trace!("allocated frame: {:x?}, count so far: {}", frame, self.next);
+
         frame
     }
 }
@@ -145,8 +149,10 @@ impl MemoryRegions {
         Err(())
     }
 
-    fn lowest(&mut self) -> Option<&MemoryRegion> {
-        self.regions.first()
+    fn find_with_page_size<S: PageSize>(&self) -> Option<&MemoryRegion> {
+        self.regions.iter()
+            .filter(|r| r.size() >= S::SIZE)
+            .nth(0)
     }
 
     fn contains(&self, region: MemoryRegion) -> bool {
@@ -236,8 +242,9 @@ impl KernelFrameAllocator {
 
 unsafe impl<S: PageSize> FrameAllocator<S> for KernelFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame<S>> {
-        if let Some(region) = self.free_usable_regions.lowest() {
-            let frame: PhysFrame<S> = PhysFrame::containing_address(PhysAddr::new(region.start));
+        if let Some(region) = self.free_usable_regions.find_with_page_size::<S>() {
+            let start = PhysAddr::new(region.start).align_up(S::SIZE);
+            let frame: PhysFrame<S> = PhysFrame::from_start_address(start).ok()?;
 
             let frame_end = frame.start_address().as_u64() + frame.size();
             let allocated_region = MemoryRegion { start: region.start, end: frame_end };
@@ -245,6 +252,7 @@ unsafe impl<S: PageSize> FrameAllocator<S> for KernelFrameAllocator {
 
             #[cfg(feature = "dbg-mem")]
             log::trace!("allocated frame: {:x?}", frame);
+
             return Some(frame);
         }
         None
@@ -261,11 +269,13 @@ impl<S: PageSize> FrameDeallocator<S> for KernelFrameAllocator {
 
             #[cfg(feature = "dbg-mem")]
             log::trace!("deallocated frame: {:x?}", frame);
+
         } else if self.reserved_regions.contains(region) {
             self.free_reserved_regions.add(region);
 
             #[cfg(feature = "dbg-mem")]
             log::trace!("deallocated reserved frame: {:x?}", frame);
+
         } else {
             panic!("couldn't deallocate frame: {:x?}", frame);
         }

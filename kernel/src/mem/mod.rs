@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 use bootloader_api::info::MemoryRegions;
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
-use x86_64::{structures::paging::{OffsetPageTable, PageTable, PhysFrame, Mapper, PageTableFlags, mapper::{MapToError, UnmapError}, Size4KiB, Page, FrameAllocator, FrameDeallocator, Size2MiB, Size1GiB}, VirtAddr, PhysAddr};
+use x86_64::{structures::paging::{OffsetPageTable, PageTable, PhysFrame, Mapper, PageTableFlags, mapper::{MapToError, UnmapError}, Size4KiB, Page, FrameAllocator, FrameDeallocator, Size2MiB, Size1GiB, PageSize}, VirtAddr, PhysAddr};
 
 use self::paging::{BootInfoFrameAllocator, KernelFrameAllocator};
 
@@ -130,12 +130,14 @@ pub unsafe fn init(physical_memory_offset: VirtAddr, memory_regions: &'static Me
 
     let mut initial_frame_allocator = BootInfoFrameAllocator::init(memory_regions);
 
-    allocator::init_heap(&mut page_table, 1024 * 1024 * 4, &mut initial_frame_allocator).unwrap_or_else(|e| panic!("heap init failed: {:#?}", e));
+    allocator::init_heap(&mut page_table, 4 * Size4KiB::SIZE, &mut initial_frame_allocator).unwrap_or_else(|e| panic!("heap init failed: {:#?}", e));
 
     MEMORY_MANAGER.init_once(|| MemoryManager {
         page_table: Arc::new(Mutex::new(page_table)),
         frame_allocator: Arc::new(Mutex::new(KernelFrameAllocator::init(&initial_frame_allocator))),
     });
+
+    allocator::extend(4 * Size2MiB::SIZE as usize).unwrap_or_else(|e| panic!("failed to extend heap: {:#?}", e));
 }
 
 /// Returns a mutable reference to the active level 4 table.
