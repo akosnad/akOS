@@ -31,11 +31,13 @@ dependencies = [
  "chrono",
  "conquer-once",
  "crossbeam-queue",
+ "crossbeam-utils",
  "futures-util",
  "lazy_static",
  "linked_list_allocator",
  "log",
  "noto-sans-mono-bitmap",
+ "pc-keyboard",
  "pic8259",
  "spin 0.9.4",
  "spinning_top",
@@ -384,6 +386,12 @@ name = "paste"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1de2e551fb905ac83f73f7aedf2f0cb4a0da7e35efa24a202a936269f1f18e1"
+
+[[package]]
+name = "pc-keyboard"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0ad9805165d0672a3efa682cac952870d8b05d98e02e08063ca7db597005338"
 
 [[package]]
 name = "pic8259"

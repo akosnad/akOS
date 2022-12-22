@@ -4,7 +4,8 @@
 #![feature(map_first_last)]
 #![feature(const_option)]
 
-use ::acpi::PlatformInfo;
+use ::acpi::AcpiTables;
+use mem::MemoryManager;
 
 extern crate alloc;
 
@@ -17,10 +18,19 @@ pub mod interrupts;
 pub mod acpi;
 pub mod serial;
 pub mod time;
+pub mod pci;
 
-pub fn init(platform_info: Option<PlatformInfo>) {
+pub fn init(acpi_tables: Option<AcpiTables<MemoryManager>>) {
     gdt::init();
-    interrupts::init(platform_info.and_then(|i| Some(i.interrupt_model)));
+    if let Some(tables) = acpi_tables {
+        let interrupt_model = tables.platform_info()
+            .map(|p| p.interrupt_model)
+            .ok();
+        interrupts::init(interrupt_model);
+        pci::init(tables).ok();
+    } else {
+        interrupts::init(None);
+    }
 }
 
 pub fn halt() -> ! {

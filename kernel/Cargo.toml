@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = []
+default = ["dbg-acpi"]
 
-dbg = ["dbg-mem"]
+dbg = ["dbg-mem", "dbg-acpi"]
 dbg-mem = []
 dbg-acpi = []
 
@@ -19,6 +19,7 @@ noto-sans-mono-bitmap = "0.2"
 spinning_top = "0.2"
 conquer-once = { version = "0.3", default-features = false }
 crossbeam-queue = { version = "0.3", default-features = false, features = ["alloc"] }
+crossbeam-utils = { version = "0.8", default-features = false }
 lazy_static = { version = "1.4", features = ["spin_no_std"] }
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 pic8259 = "0.10"
@@ -27,6 +28,7 @@ x86 = "0.52"
 spin = "0.9"
 acpi = "4.1"
 uart_16550 = "0.2"
+pc-keyboard = "0.6"
 
 [build-dependencies]
 chrono = "0.4"
