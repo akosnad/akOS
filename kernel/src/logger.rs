@@ -47,7 +47,8 @@ impl Log for LockedLogger {
     #[cfg(debug_assertions)]
     fn log(&self, record: &Record) {
         if record.file().is_some() && record.line().is_some() {
-            println!("[{}:\t{}:{}]\t{}",
+            println!("[{}\t{}\t{}:{}]\t{}",
+                     crate::time::boot_elapsed(),
                      record.level(),
                      record.file().unwrap(),
                      record.line().unwrap(),

@@ -16,6 +16,7 @@ pub mod gdt;
 pub mod interrupts;
 pub mod acpi;
 pub mod serial;
+pub mod time;
 
 pub fn init(platform_info: Option<PlatformInfo>) {
     gdt::init();

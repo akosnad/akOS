@@ -175,8 +175,7 @@ extern "x86-interrupt" fn apic_error_handler(_stack_frame: InterruptStackFrame) 
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    //log::trace!(".");
-    // TODO: track elapsed boot time
+        crate::time::increment();
     unsafe {
         LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized")
             .lock().end_of_interrupt();
