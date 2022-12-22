@@ -234,10 +234,10 @@ impl KernelFrameAllocator {
     }
 }
 
-unsafe impl<T: PageSize> FrameAllocator<T> for KernelFrameAllocator {
-    fn allocate_frame(&mut self) -> Option<PhysFrame<T>> {
+unsafe impl<S: PageSize> FrameAllocator<S> for KernelFrameAllocator {
+    fn allocate_frame(&mut self) -> Option<PhysFrame<S>> {
         if let Some(region) = self.free_usable_regions.lowest() {
-            let frame: PhysFrame<T> = PhysFrame::containing_address(PhysAddr::new(region.start));
+            let frame: PhysFrame<S> = PhysFrame::containing_address(PhysAddr::new(region.start));
 
             let frame_end = frame.start_address().as_u64() + frame.size();
             let allocated_region = MemoryRegion { start: region.start, end: frame_end };
@@ -251,8 +251,8 @@ unsafe impl<T: PageSize> FrameAllocator<T> for KernelFrameAllocator {
     }
 }
 
-impl<T: PageSize> FrameDeallocator<T> for KernelFrameAllocator {
-    unsafe fn deallocate_frame(&mut self, frame: PhysFrame<T>) {
+impl<S: PageSize> FrameDeallocator<S> for KernelFrameAllocator {
+    unsafe fn deallocate_frame(&mut self, frame: PhysFrame<S>) {
         let start = frame.start_address().as_u64();
         let end = start + frame.size();
         let region = MemoryRegion { start, end };

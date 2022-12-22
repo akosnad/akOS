@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 use bootloader_api::info::MemoryRegions;
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
-use x86_64::{structures::paging::{OffsetPageTable, PageTable, PhysFrame, Mapper, PageTableFlags, mapper::{MapToError, UnmapError}, Size4KiB, Page, FrameAllocator, FrameDeallocator}, VirtAddr, PhysAddr};
+use x86_64::{structures::paging::{OffsetPageTable, PageTable, PhysFrame, Mapper, PageTableFlags, mapper::{MapToError, UnmapError}, Size4KiB, Page, FrameAllocator, FrameDeallocator, Size2MiB, Size1GiB}, VirtAddr, PhysAddr};
 
 use self::paging::{BootInfoFrameAllocator, KernelFrameAllocator};
 
@@ -25,22 +25,6 @@ pub struct MemoryManager<'a> {
 }
 
 impl MemoryManager<'_> {
-    pub fn map(&self, page: Page) -> Result<PhysFrame, MapToError<Size4KiB>> {
-        #[cfg(feature = "dbg-mem")]
-        log::trace!("mapping page: {:x?}", page);
-
-        let frame = self.frame_allocator.lock().allocate_frame()
-            .expect("cannot allocate frame");
-        unsafe {
-            self.page_table.lock().map_to(
-                page,
-                frame,
-                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-                self.frame_allocator.lock().deref_mut()
-                )?.flush();
-        }
-        Ok(frame)
-    }
     pub fn identity_map(&self, frame: PhysFrame) -> Result<(), MapToError<Size4KiB>> {
         #[cfg(feature = "dbg-mem")]
         log::trace!("identity mapping frame: {:x?}", frame);
@@ -57,17 +41,48 @@ impl MemoryManager<'_> {
     pub fn identity_map_address(&self, physical_address: u64) -> Result<(), MapToError<Size4KiB>> {
         self.identity_map(PhysFrame::containing_address(PhysAddr::new(physical_address)))
     }
-    pub fn unmap(&self, page: Page) -> Result<(), UnmapError> {
-        #[cfg(feature = "dbg-mem")]
-        log::trace!("unmapping page: {:x?}", page);
-
-        let frame = self.page_table.lock().unmap(page).and_then(|p| { p.1.flush(); Ok(p.0) })?;
-        unsafe {
-            self.frame_allocator.lock().deallocate_frame(frame);
-        }
-        Ok(())
-    }
 }
+
+macro_rules! gen_map_impl {
+    ($Size:ident, $map_name:ident, $unmap_name:ident) => {
+        impl<'a> MemoryManager<'a>
+        where
+            OffsetPageTable<'a>: Mapper<$Size>
+        {
+            pub fn $map_name(&self, page: Page<$Size>) -> Result<PhysFrame<$Size>, MapToError<$Size>> {
+                #[cfg(feature = "dbg-mem")]
+                log::trace!("mapping page: {:x?}", page);
+
+                let frame: PhysFrame<$Size> = self.frame_allocator.lock().allocate_frame()
+                    .expect("cannot allocate frame");
+                unsafe {
+                    self.page_table.lock().map_to(
+                        page,
+                        frame,
+                        PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+                        self.frame_allocator.lock().deref_mut()
+                        )?.flush();
+                }
+                Ok(frame)
+            }
+            pub fn $unmap_name(&self, page: Page<$Size>) -> Result<(), UnmapError> {
+                #[cfg(feature = "dbg-mem")]
+                log::trace!("unmapping page: {:x?}", page);
+
+                let frame = self.page_table.lock().unmap(page).and_then(|p| { p.1.flush(); Ok(p.0) })?;
+                unsafe {
+                    self.frame_allocator.lock().deallocate_frame(frame);
+                }
+                Ok(())
+            }
+        }
+    };
+}
+
+gen_map_impl!(Size4KiB, map, unmap);
+gen_map_impl!(Size2MiB, map_2m, unmap_2m);
+gen_map_impl!(Size1GiB, map_1g, unmap_1g);
+
 
 impl AcpiHandler for MemoryManager<'_> {
     unsafe fn map_physical_region<T>(&self, physical_address: usize, size: usize) -> acpi::PhysicalMapping<Self, T> {
