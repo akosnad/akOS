@@ -43,6 +43,9 @@ pub fn init_heap(
         ALLOCATOR.lock().init(heap_start.as_mut_ptr(), initial_size as usize);
     }
 
+    #[cfg(feature = "dbg-mem")]
+    dump_heap_state();
+
     Ok(())
 }
 
@@ -73,5 +76,23 @@ pub fn extend(
         ALLOCATOR.lock().extend(extension_size);
     }
 
+    #[cfg(feature = "dbg-mem")]
+    dump_heap_state();
+
     Ok(())
+}
+
+pub fn dump_heap_state() {
+    const K: usize = 1024;
+    let a = ALLOCATOR.lock();
+    let used = a.used() / K;
+    let size = a.size() / K;
+    log::debug!(
+        "heap: used {} KiB ({} MiB) out of {} KiB ({} MiB) ({:.2}%)",
+        used,
+        used / K,
+        size,
+        size / K,
+        (used as f32 / size as f32) * 100.
+    );
 }

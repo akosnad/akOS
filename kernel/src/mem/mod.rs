@@ -11,6 +11,8 @@ use self::paging::{BootInfoFrameAllocator, KernelFrameAllocator};
 mod allocator;
 mod paging;
 
+pub use allocator::dump_heap_state;
+
 static MEMORY_MANAGER: OnceCell<MemoryManager> = OnceCell::uninit();
 
 pub fn get_memory_manager() -> MemoryManager<'static> {

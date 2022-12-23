@@ -33,11 +33,7 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     );
 
     log::set_logger(&logger::LOGGER).expect("failed to setup logger");
-    log::set_max_level(log::LevelFilter::Info);
-    #[cfg(debug_assertions)]
-    {
-        log::set_max_level(log::LevelFilter::Trace);
-    }
+    log::set_max_level(log::LevelFilter::Trace);
     log::debug!("hello from logger");
 
     let physical_memory_offset = VirtAddr::new(boot_info.physical_memory_offset.into_option().expect("no physical_memory_offset"));

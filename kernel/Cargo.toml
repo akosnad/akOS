@@ -4,14 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = []
+default = ["dbg-mem"]
 
 dbg = ["dbg-mem", "dbg-acpi"]
 dbg-mem = []
 dbg-acpi = []
 
 [dependencies]
-log = "0.4"
+log = { version = "0.4", features = ["max_level_trace", "release_max_level_info"] }
 x86_64 = "0.14"
 bootloader_api = "0.11"
 linked_list_allocator = "0.10"
