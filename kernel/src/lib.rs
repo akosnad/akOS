@@ -2,7 +2,6 @@
 #![feature(alloc_error_handler)]
 #![feature(abi_x86_interrupt)]
 #![feature(anonymous_lifetime_in_impl_trait)]
-#![feature(map_first_last)]
 #![feature(const_option)]
 
 use ::acpi::AcpiTables;
