@@ -83,16 +83,26 @@ pub fn extend(
 }
 
 pub fn dump_heap_state() {
+    let mut level = log::Level::Debug;
     const K: usize = 1024;
+
     let a = ALLOCATOR.lock();
     let used = a.used() / K;
     let size = a.size() / K;
-    log::debug!(
+    let ratio = used as f32 / size as f32;
+    if ratio == 1. {
+        level = log::Level::Error;
+    } else if ratio > 0.8 {
+        level = log::Level::Warn;
+    }
+
+    log::log!(
+        level,
         "heap: used {} KiB ({} MiB) out of {} KiB ({} MiB) ({:.2}%)",
         used,
         used / K,
         size,
         size / K,
-        (used as f32 / size as f32) * 100.
+        ratio * 100.
     );
 }

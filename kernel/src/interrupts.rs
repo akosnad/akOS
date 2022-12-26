@@ -84,6 +84,8 @@ unsafe fn init_lapic(base_address: u64) {
         .build()
         .unwrap_or_else(|e| panic!("{}", e));
     lapic.enable();
+
+    #[cfg(feature = "dbg-interrupts")]
     log::debug!("apic id: {}, version: {}", lapic.id(), lapic.version());
 
     LAPIC.init_once(|| { spin::Mutex::new(lapic) });
@@ -99,6 +101,8 @@ unsafe fn init_io_apic(base_address: u64) {
 
     let mut ioapic = x2apic::ioapic::IoApic::new(base_address);
     ioapic.init(IOAPIC_INTERRUPT_INDEX_OFFSET);
+
+    #[cfg(feature = "dbg-interrupts")]
     log::debug!("ioapic id: {}, version: {}", ioapic.id(), ioapic.version());
 
     let mut entry = RedirectionTableEntry::default();
@@ -113,7 +117,9 @@ unsafe fn init_io_apic(base_address: u64) {
 }
 
 pub fn init(interrupt_model: Option<InterruptModel>) {
+    #[cfg(feature = "dbg-interrupts")]
     log::trace!("loading IDT at: {:p}", &IDT);
+
     IDT.load();
     if let Some(InterruptModel::Apic(model)) = interrupt_model {
         unsafe {

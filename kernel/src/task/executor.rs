@@ -5,6 +5,7 @@ use core::task::{Waker, Context, Poll};
 
 static mut DUMP_STATE: bool = false;
 
+#[derive(Debug)]
 pub struct Executor {
     tasks: BTreeMap<TaskId, Task>,
     task_queue: Arc<ArrayQueue<TaskId>>,

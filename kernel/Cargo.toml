@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["dbg-mem"]
+default = []
 
-dbg = ["dbg-mem", "dbg-acpi"]
+dbg = ["dbg-mem", "dbg-acpi", "dbg-interrupts" ]
 dbg-mem = []
 dbg-acpi = []
+dbg-interrupts = []
 
 [dependencies]
 log = { version = "0.4", features = ["max_level_trace", "release_max_level_info"] }

@@ -1,4 +1,3 @@
-#![feature(alloc_error_handler)]
 #![no_std]
 #![no_main]
 
@@ -46,43 +45,16 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     logger::LOGGER.attach_framebuffer(fb_buffer, fb_info);
     log::debug!("switched to framebuffer");
 
-    let acpi_info = if let Some(rsdp_addr) = boot_info.rsdp_addr.into_option() {
-        Some(ak_os_kernel::acpi::init(rsdp_addr))
-    } else {
+    let acpi_info = boot_info.rsdp_addr.into_option()
+        .and_then(|addr| Some(ak_os_kernel::acpi::init(addr)));
+    if acpi_info.is_none() {
         log::warn!("no RSDP address provided for the kernel, ACPI initialization not possible");
-        None
-    };
+    }
 
     ak_os_kernel::init(acpi_info);
 
     let mut executor = Executor::new();
     executor.spawn(Task::new_with_name("keyboard", keyboard::process()));
-    executor.spawn(Task::new(example_task()));
     executor.run();
 }
 
-async fn test() -> u32 {
-    for _ in 0..10000000 {
-    }
-    42
-}
-
-async fn example_task() {
-    for _ in 0..2 {
-        let n = test().await;
-        log::info!("async hello: {}", n);
-    }
-}
-
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    let _ = unsafe { logger::LOGGER.force_unlock() };
-    log::error!("{}", info);
-    x86_64::instructions::interrupts::disable();
-    ak_os_kernel::halt();
-}
-
-#[alloc_error_handler]
-fn alloc_error(_layout: alloc::alloc::Layout) -> ! {
-    panic!("out of memory");
-}

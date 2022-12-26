@@ -1,4 +1,5 @@
 #![no_std]
+#![feature(alloc_error_handler)]
 #![feature(abi_x86_interrupt)]
 #![feature(anonymous_lifetime_in_impl_trait)]
 #![feature(map_first_last)]
@@ -37,4 +38,18 @@ pub fn halt() -> ! {
     loop {
         x86_64::instructions::hlt();
     }
+}
+
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    let _ = unsafe { logger::LOGGER.force_unlock() };
+    log::error!("{}", info);
+    x86_64::instructions::interrupts::disable();
+    halt();
+}
+
+#[alloc_error_handler]
+fn alloc_error(_layout: alloc::alloc::Layout) -> ! {
+    mem::dump_heap_state();
+    panic!("out of memory");
 }
