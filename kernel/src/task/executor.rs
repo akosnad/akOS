@@ -1,7 +1,7 @@
 use super::{Task, TaskId};
 use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
+use core::task::{Context, Poll, Waker};
 use crossbeam_queue::ArrayQueue;
-use core::task::{Waker, Context, Poll};
 
 static mut DUMP_STATE: bool = false;
 
@@ -13,14 +13,6 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub fn new() -> Self {
-        Self {
-            tasks: BTreeMap::new(),
-            task_queue: Arc::new(ArrayQueue::new(1024)),
-            waker_cache: BTreeMap::new(),
-        }
-    }
-
     pub fn spawn(&mut self, task: Task) {
         let task_id = task.id;
         if self.tasks.insert(task.id, task).is_some() {
@@ -34,7 +26,7 @@ impl Executor {
         let Self {
             tasks,
             task_queue,
-            waker_cache
+            waker_cache,
         } = self;
 
         while let Some(task_id) = task_queue.pop() {
@@ -45,14 +37,14 @@ impl Executor {
 
             let waker = waker_cache
                 .entry(task_id)
-                .or_insert_with(|| TaskWaker::new(task_id, task_queue.clone()));
+                .or_insert_with(|| TaskWaker::new_waker(task_id, task_queue.clone()));
 
             let mut context = Context::from_waker(waker);
             match task.poll(&mut context) {
                 Poll::Ready(()) => {
                     tasks.remove(&task_id);
                     waker_cache.remove(&task_id);
-                },
+                }
                 Poll::Pending => {}
             }
         }
@@ -68,13 +60,17 @@ impl Executor {
         interrupts::disable();
         if self.task_queue.is_empty() {
             enable_and_hlt();
-        } else { interrupts::enable(); }
+        } else {
+            interrupts::enable();
+        }
     }
 
     pub fn run(&mut self) -> ! {
         loop {
             unsafe {
-                if DUMP_STATE { self.dump_state_inner(); }
+                if DUMP_STATE {
+                    self.dump_state_inner();
+                }
             }
             self.run_ready_tasks();
             self.sleep_if_idle();
@@ -88,10 +84,24 @@ impl Executor {
             self.task_queue,
             self.waker_cache
         );
-        unsafe { DUMP_STATE = false; }
+        unsafe {
+            DUMP_STATE = false;
+        }
     }
     pub fn dump_state() {
-        unsafe { DUMP_STATE = true; }
+        unsafe {
+            DUMP_STATE = true;
+        }
+    }
+}
+
+impl Default for Executor {
+    fn default() -> Self {
+        Self {
+            tasks: BTreeMap::new(),
+            task_queue: Arc::new(ArrayQueue::new(1024)),
+            waker_cache: BTreeMap::new(),
+        }
     }
 }
 
@@ -100,7 +110,7 @@ struct TaskWaker {
     task_queue: Arc<ArrayQueue<TaskId>>,
 }
 impl TaskWaker {
-    fn new(task_id: TaskId, task_queue: Arc<ArrayQueue<TaskId>>) -> Waker {
+    fn new_waker(task_id: TaskId, task_queue: Arc<ArrayQueue<TaskId>>) -> Waker {
         Waker::from(Arc::new(TaskWaker {
             task_id,
             task_queue,
@@ -108,7 +118,9 @@ impl TaskWaker {
     }
 
     fn wake_task(&self) {
-        self.task_queue.push(self.task_id).expect("cannot wake task, task_queue full");
+        self.task_queue
+            .push(self.task_id)
+            .expect("cannot wake task, task_queue full");
     }
 }
 impl Wake for TaskWaker {
@@ -120,4 +132,3 @@ impl Wake for TaskWaker {
         self.wake_task();
     }
 }
-

@@ -1,6 +1,8 @@
-use log::{Log, Record, Metadata};
 use bootloader_api::info::{FrameBufferInfo, PixelFormat};
-use noto_sans_mono_bitmap::{get_raster, get_raster_width, RasterizedChar, RasterHeight, FontWeight};
+use log::{Log, Metadata, Record};
+use noto_sans_mono_bitmap::{
+    get_raster, get_raster_width, FontWeight, RasterHeight, RasterizedChar,
+};
 use spinning_top::Spinlock;
 
 use crate::{println, serial::Serial};
@@ -23,6 +25,10 @@ impl LockedLogger {
         }
     }
 
+    /// # Safety
+    ///
+    /// This function is unsafe because it should only be called
+    /// when panicking. It forcibly unlocks the logger, so we can always print the panic message.
     pub unsafe fn force_unlock(&self) {
         self.logger.force_unlock();
         self.serial.force_unlock();
@@ -31,7 +37,10 @@ impl LockedLogger {
     pub fn attach_framebuffer(&self, framebuffer: &'static mut [u8], info: FrameBufferInfo) {
         self.logger.lock().attach_framebuffer(framebuffer, info)
     }
-    fn lock(&self) -> spinning_top::lock_api::MutexGuard<spinning_top::RawSpinlock, Logger<LOG_BUFFER_SIZE>> {
+    fn lock(
+        &self,
+    ) -> spinning_top::lock_api::MutexGuard<spinning_top::RawSpinlock, Logger<LOG_BUFFER_SIZE>>
+    {
         self.logger.lock()
     }
     fn lock_serial(&self) -> spinning_top::lock_api::MutexGuard<spinning_top::RawSpinlock, Serial> {
@@ -47,27 +56,22 @@ impl Log for LockedLogger {
     #[cfg(debug_assertions)]
     fn log(&self, record: &Record) {
         if record.file().is_some() && record.line().is_some() {
-            println!("[{}\t{}\t{}:{}]\t{}",
-                     crate::time::boot_elapsed(),
-                     record.level(),
-                     record.file().unwrap(),
-                     record.line().unwrap(),
-                     record.args(),
+            println!(
+                "[{}\t{}\t{}:{}]\t{}",
+                crate::time::boot_elapsed(),
+                record.level(),
+                record.file().unwrap(),
+                record.line().unwrap(),
+                record.args(),
             );
         } else {
-            println!("[{}] {}",
-                     record.level(),
-                     record.args(),
-            );
+            println!("[{}] {}", record.level(), record.args(),);
         }
     }
 
     #[cfg(not(debug_assertions))]
     fn log(&self, record: &Record) {
-        println!("[{}] {}",
-                 record.level(),
-                 record.args(),
-        );
+        println!("[{}] {}", record.level(), record.args(),);
     }
 
     fn flush(&self) {}
@@ -86,12 +90,12 @@ impl<const N: usize> Logger<N> {
         match self {
             Logger::MemoryBacked(l) => {
                 let mut fb = FbLogger::new(framebuffer, info);
-                for c in l.buf.iter().filter(|c| c.is_some()).map(|c| c.unwrap()) {
-                    fb.write(c);
+                for c in l.buf.iter().flatten() {
+                    fb.write(*c);
                 }
                 *self = Logger::FramebufferBacked(fb)
-            },
-            Logger::FramebufferBacked(_) => return,
+            }
+            Logger::FramebufferBacked(_) => (),
         }
     }
 
@@ -116,7 +120,9 @@ impl<const N: usize> MemLogger<N> {
     }
 
     pub fn write(&mut self, c: char) {
-        if self.next == N { return; }
+        if self.next == N {
+            return;
+        }
         self.buf[self.next] = Some(c);
         self.next += 1;
     }
@@ -135,7 +141,7 @@ impl FbLogger {
             framebuffer,
             info,
             x: 0,
-            y: 0
+            y: 0,
         };
         logger.clear();
         logger
@@ -162,9 +168,10 @@ impl FbLogger {
             '\r' => self.carriage_return(),
             c => {
                 const TAB_SIZE: usize = 8;
-                const BITMAP_WIDTH: usize = get_raster_width(FontWeight::Regular, RasterHeight::Size16);
+                const BITMAP_WIDTH: usize =
+                    get_raster_width(FontWeight::Regular, RasterHeight::Size16);
 
-                if self.x / BITMAP_WIDTH  >= self.width() / BITMAP_WIDTH {
+                if self.x / BITMAP_WIDTH >= self.width() / BITMAP_WIDTH {
                     self.newline();
                 }
                 if self.y >= (self.height() - BITMAP_WIDTH) {
@@ -202,8 +209,7 @@ impl FbLogger {
         };
         let bpp = self.info.bytes_per_pixel;
         let byte_offset = offset * bpp;
-        self.framebuffer[byte_offset..(byte_offset + bpp)]
-            .copy_from_slice(&color[..bpp]);
+        self.framebuffer[byte_offset..(byte_offset + bpp)].copy_from_slice(&color[..bpp]);
         let _ = unsafe { core::ptr::read_volatile(&self.framebuffer[byte_offset]) };
     }
 
@@ -233,11 +239,10 @@ pub fn _print(args: ::core::fmt::Arguments) {
     use x86_64::instructions::interrupts;
 
     interrupts::without_interrupts(|| {
-        LOGGER.lock_serial()
-            .write_fmt(args)
-            .expect("print failed");
+        LOGGER.lock_serial().write_fmt(args).expect("print failed");
 
-        LOGGER.lock()
+        LOGGER
+            .lock()
             .write_fmt(args)
             .expect("print to serial failed");
     });

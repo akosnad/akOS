@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use std::env::var;
+use std::path::PathBuf;
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
@@ -18,11 +18,14 @@ fn main() {
     };
     let disk_path_bios = disk_path.with_file_name("akOS_bios.img");
 
-
     let uefi_boot = bootloader::UefiBoot::new(&kernel_path);
-    uefi_boot.create_disk_image(&disk_path).expect("failed to create boot partition");
-    let bios_boot= bootloader::BiosBoot::new(&kernel_path);
-    bios_boot.create_disk_image(&disk_path_bios).expect("failed to create boot partition");
+    uefi_boot
+        .create_disk_image(&disk_path)
+        .expect("failed to create boot partition");
+    let bios_boot = bootloader::BiosBoot::new(&kernel_path);
+    bios_boot
+        .create_disk_image(&disk_path_bios)
+        .expect("failed to create boot partition");
 
     println!("cargo:rustc-env=UEFI_PATH={}", disk_path.display());
     println!("cargo:rustc-env=BIOS_PATH={}", disk_path_bios.display());

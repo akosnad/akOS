@@ -1,5 +1,11 @@
 use alloc::collections::LinkedList;
 
+use thiserror_no_std::Error;
+
+#[derive(Error, Debug)]
+#[error("array is full")]
+pub struct ArrayFullError;
+
 /// This list type allows for use with no memory allocation.
 ///
 /// After heap allocation is present, we can switch to using a dynamic
@@ -13,7 +19,7 @@ impl<T: Copy, const N: usize> StaticList<T, N> {
         StaticList::Array([None; N])
     }
 
-    pub fn push_back(&mut self, value: T) -> Result<(), ()> {
+    pub fn push_back(&mut self, value: T) -> Result<(), ArrayFullError> {
         match self {
             StaticList::Array(arr) => {
                 for item in arr {
@@ -22,7 +28,7 @@ impl<T: Copy, const N: usize> StaticList<T, N> {
                         return Ok(());
                     }
                 }
-                Err(())
+                Err(ArrayFullError)
             }
             StaticList::LinkedList(list) => {
                 list.push_back(value);
@@ -31,14 +37,16 @@ impl<T: Copy, const N: usize> StaticList<T, N> {
         }
     }
 
-    pub fn push_front(&mut self, value: T) -> Result<(), ()> {
+    pub fn push_front(&mut self, value: T) -> Result<(), ArrayFullError> {
         match self {
             StaticList::Array(arr) => {
                 if let Some(None) = arr.last() {
                     arr.rotate_right(1);
                     arr[0].replace(value);
                     Ok(())
-                } else { Err(()) }
+                } else {
+                    Err(ArrayFullError)
+                }
             }
             StaticList::LinkedList(list) => {
                 list.push_front(value);
@@ -58,7 +66,7 @@ impl<T: Copy, const N: usize> StaticList<T, N> {
                 }
                 list
             }
-            StaticList::LinkedList(_) => return
+            StaticList::LinkedList(_) => return,
         };
         *self = StaticList::LinkedList(new_list);
     }
@@ -70,7 +78,9 @@ impl<T: Copy, const N: usize> StaticList<T, N> {
             StaticList::Array(arr) => iter_arr = Some(arr.iter().flatten()),
             StaticList::LinkedList(list) => iter_list = Some(list.iter()),
         }
-        iter_arr.into_iter().flatten()
+        iter_arr
+            .into_iter()
+            .flatten()
             .chain(iter_list.into_iter().flatten())
     }
 
@@ -81,7 +91,9 @@ impl<T: Copy, const N: usize> StaticList<T, N> {
             StaticList::Array(arr) => iter_arr = Some(arr.iter_mut().flatten()),
             StaticList::LinkedList(list) => iter_list = Some(list.iter_mut()),
         }
-        iter_arr.into_iter().flatten()
+        iter_arr
+            .into_iter()
+            .flatten()
             .chain(iter_list.into_iter().flatten())
     }
 }

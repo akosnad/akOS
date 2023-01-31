@@ -1,11 +1,11 @@
 pub mod executor;
 pub mod keyboard;
 
-use core::sync::atomic::AtomicU64;
-use core::{future::Future, pin::Pin};
-use core::task::{Context, Poll};
 use alloc::boxed::Box;
 use alloc::string::String;
+use core::sync::atomic::AtomicU64;
+use core::task::{Context, Poll};
+use core::{future::Future, pin::Pin};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TaskId(u64);

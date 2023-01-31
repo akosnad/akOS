@@ -7,7 +7,7 @@ pub struct Serial {
 impl Serial {
     pub const fn new() -> Self {
         Self {
-            port: unsafe { SerialPort::new(0x3f8) }
+            port: unsafe { SerialPort::new(0x3f8) },
         }
     }
 

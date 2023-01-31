@@ -3,10 +3,13 @@
 
 extern crate alloc;
 
-use bootloader_api::{entry_point, BootInfo, BootloaderConfig, config::Mapping};
-use ak_os_kernel::{mem, logger, task::{Task, executor::Executor, keyboard}, println};
-use x86_64::VirtAddr;
+use ak_os_kernel::{
+    logger, mem, println,
+    task::{executor::Executor, keyboard, Task},
+};
+use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::env;
+use x86_64::VirtAddr;
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -26,35 +29,39 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
         env!("BUILD_TARGET"),
         env!("BUILD_DATE"),
     );
-    println!("{}\n{}",
-        env!("RUSTC_VERSION"),
-        env!("CARGO_VERSION"),
-    );
+    println!("{}\n{}", env!("RUSTC_VERSION"), env!("CARGO_VERSION"),);
 
     log::set_logger(&logger::LOGGER).expect("failed to setup logger");
     log::set_max_level(log::LevelFilter::Trace);
     log::debug!("hello from logger");
 
-    let physical_memory_offset = VirtAddr::new(boot_info.physical_memory_offset.into_option().expect("no physical_memory_offset"));
+    let physical_memory_offset = VirtAddr::new(
+        boot_info
+            .physical_memory_offset
+            .into_option()
+            .expect("no physical_memory_offset"),
+    );
     unsafe { mem::init(physical_memory_offset, &boot_info.memory_regions) };
 
     let fb = boot_info.framebuffer.as_mut().expect("no framebuffer");
     let fb_info = fb.info();
     let fb_array = fb.buffer_mut();
-    let fb_buffer = unsafe { core::slice::from_raw_parts_mut(fb_array.as_mut_ptr(), fb_array.len()) };
+    let fb_buffer =
+        unsafe { core::slice::from_raw_parts_mut(fb_array.as_mut_ptr(), fb_array.len()) };
     logger::LOGGER.attach_framebuffer(fb_buffer, fb_info);
     log::debug!("switched to framebuffer");
 
-    let acpi_info = boot_info.rsdp_addr.into_option()
-        .and_then(|addr| Some(ak_os_kernel::acpi::init(addr)));
+    let acpi_info = boot_info
+        .rsdp_addr
+        .into_option()
+        .map(ak_os_kernel::acpi::init);
     if acpi_info.is_none() {
         log::warn!("no RSDP address provided for the kernel, ACPI initialization not possible");
     }
 
     ak_os_kernel::init(acpi_info);
 
-    let mut executor = Executor::new();
+    let mut executor = Executor::default();
     executor.spawn(Task::new_with_name("keyboard", keyboard::process()));
     executor.run();
 }
-

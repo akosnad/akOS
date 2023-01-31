@@ -9,23 +9,21 @@ use mem::MemoryManager;
 
 extern crate alloc;
 
-pub mod util;
-pub mod mem;
-pub mod logger;
-pub mod task;
+pub mod acpi;
 pub mod gdt;
 pub mod interrupts;
-pub mod acpi;
-pub mod serial;
-pub mod time;
+pub mod logger;
+pub mod mem;
 pub mod pci;
+pub mod serial;
+pub mod task;
+pub mod time;
+pub mod util;
 
 pub fn init(acpi_tables: Option<AcpiTables<MemoryManager>>) {
     gdt::init();
     if let Some(tables) = acpi_tables {
-        let interrupt_model = tables.platform_info()
-            .map(|p| p.interrupt_model)
-            .ok();
+        let interrupt_model = tables.platform_info().map(|p| p.interrupt_model).ok();
         interrupts::init(interrupt_model);
         pci::init(tables).ok();
     } else {
@@ -41,7 +39,7 @@ pub fn halt() -> ! {
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    let _ = unsafe { logger::LOGGER.force_unlock() };
+    unsafe { logger::LOGGER.force_unlock() };
     log::error!("{}", info);
     x86_64::instructions::interrupts::disable();
     halt();

@@ -1,6 +1,11 @@
 use alloc::collections::BTreeSet;
-use bootloader_api::info::{MemoryRegions as BootMemoryRegions, MemoryRegionKind as BootMemoryRegionKind};
-use x86_64::{structures::paging::{PhysFrame, Size4KiB, FrameAllocator, FrameDeallocator, PageSize}, PhysAddr};
+use bootloader_api::info::{
+    MemoryRegionKind as BootMemoryRegionKind, MemoryRegions as BootMemoryRegions,
+};
+use x86_64::{
+    structures::paging::{FrameAllocator, FrameDeallocator, PageSize, PhysFrame, Size4KiB},
+    PhysAddr,
+};
 
 pub struct BootInfoFrameAllocator {
     memory_regions: &'static BootMemoryRegions,
@@ -65,8 +70,8 @@ impl MemoryRegion {
 
     #[inline]
     fn overlaps(&self, other: &Self) -> bool {
-        (self.start > other.start && self.end < other.end) ||
-        (other.start > self.start && other.end < self.end)
+        (self.start > other.start && self.end < other.end)
+            || (other.start > self.start && other.end < self.end)
     }
 
     #[inline]
@@ -114,10 +119,16 @@ impl MemoryRegions {
             if r.overlaps(&region) {
                 if region.start < r.start {
                     // we're under the existing region, extend it down
-                    self.regions.replace(MemoryRegion { start: region.start, end: r.end });
+                    self.regions.replace(MemoryRegion {
+                        start: region.start,
+                        end: r.end,
+                    });
                 } else if region.end > r.end {
                     // we're over the existing region, extend it up
-                    self.regions.replace(MemoryRegion { start: r.start, end: region.end });
+                    self.regions.replace(MemoryRegion {
+                        start: r.start,
+                        end: region.end,
+                    });
                 }
                 return;
             }
@@ -139,10 +150,20 @@ impl MemoryRegions {
         if let Some(containing_region) = containing_region {
             self.regions.remove(&containing_region);
 
-            let lower = MemoryRegion { start: containing_region.start, end: region.start };
-            let upper = MemoryRegion { start: region.end, end: containing_region.end };
-            if lower.size() > 0 { self.add(lower); }
-            if upper.size() > 0 { self.add(upper); }
+            let lower = MemoryRegion {
+                start: containing_region.start,
+                end: region.start,
+            };
+            let upper = MemoryRegion {
+                start: region.end,
+                end: containing_region.end,
+            };
+            if lower.size() > 0 {
+                self.add(lower);
+            }
+            if upper.size() > 0 {
+                self.add(upper);
+            }
 
             return Ok(());
         }
@@ -150,9 +171,7 @@ impl MemoryRegions {
     }
 
     fn find_with_page_size<S: PageSize>(&self) -> Option<&MemoryRegion> {
-        self.regions.iter()
-            .filter(|r| r.size() >= S::SIZE)
-            .nth(0)
+        self.regions.iter().find(|r| r.size() >= S::SIZE)
     }
 
     fn contains(&self, region: MemoryRegion) -> bool {
@@ -191,13 +210,13 @@ impl KernelFrameAllocator {
                         start: region.start,
                         end: region.end,
                     });
-                },
+                }
                 _ => {
                     reserved_regions.add(MemoryRegion {
                         start: region.start,
                         end: region.end,
                     });
-                },
+                }
             }
         }
 
@@ -208,7 +227,10 @@ impl KernelFrameAllocator {
         }
 
         let mut free_usable_regions = MemoryRegions::new();
-        let mut iter = boot_frame_allocator.usable_frames().skip(boot_frame_allocator.used_frame_count()).peekable();
+        let mut iter = boot_frame_allocator
+            .usable_frames()
+            .skip(boot_frame_allocator.used_frame_count())
+            .peekable();
         while let Some(frame) = iter.next() {
             let start = frame.start_address().as_u64();
             let mut end = start + frame.size();
@@ -247,7 +269,10 @@ unsafe impl<S: PageSize> FrameAllocator<S> for KernelFrameAllocator {
             let frame: PhysFrame<S> = PhysFrame::from_start_address(start).ok()?;
 
             let frame_end = frame.start_address().as_u64() + frame.size();
-            let allocated_region = MemoryRegion { start: region.start, end: frame_end };
+            let allocated_region = MemoryRegion {
+                start: region.start,
+                end: frame_end,
+            };
             self.free_usable_regions.cut(allocated_region).ok()?;
 
             #[cfg(feature = "dbg-mem")]
@@ -269,13 +294,11 @@ impl<S: PageSize> FrameDeallocator<S> for KernelFrameAllocator {
 
             #[cfg(feature = "dbg-mem")]
             log::trace!("deallocated frame: {:x?}", frame);
-
         } else if self.reserved_regions.contains(region) {
             self.free_reserved_regions.add(region);
 
             #[cfg(feature = "dbg-mem")]
             log::trace!("deallocated reserved frame: {:x?}", frame);
-
         } else {
             panic!("couldn't deallocate frame: {:x?}", frame);
         }

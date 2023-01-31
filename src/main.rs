@@ -7,15 +7,8 @@ fn main() {
     let mut extra_args = Vec::new();
 
     // find extra arguments to pass to QEMU
-    if let Some((idx, _)) = args
-        .iter()
-        .enumerate()
-        .find(|(_, e)| **e == String::from("--"))
-    {
-        extra_args = args
-            .iter()
-            .skip(idx + 1)
-            .collect();
+    if let Some((idx, _)) = args.iter().enumerate().find(|(_, e)| **e == "--") {
+        extra_args = args.iter().skip(idx + 1).collect();
     }
 
     if bios {
@@ -28,7 +21,12 @@ fn main() {
     }
 }
 
-fn run_in_qemu(uefi_gpt_path: &Path, omvf_path: Option<&Path>, debug: bool, extra_args: Vec<&String>) {
+fn run_in_qemu(
+    uefi_gpt_path: &Path,
+    omvf_path: Option<&Path>,
+    debug: bool,
+    extra_args: Vec<&String>,
+) {
     let mut cmd = Command::new("qemu-system-x86_64");
     cmd.arg("-serial").arg("stdio");
     cmd.arg("-drive");
@@ -36,9 +34,13 @@ fn run_in_qemu(uefi_gpt_path: &Path, omvf_path: Option<&Path>, debug: bool, extr
     if let Some(omvf_path) = omvf_path {
         cmd.arg("-bios").arg(omvf_path);
     }
-    if debug { cmd.arg("-s").arg("-S"); }
-    for arg in extra_args { cmd.arg(arg); }
+    if debug {
+        cmd.arg("-s").arg("-S");
+    }
+    for arg in extra_args {
+        cmd.arg(arg);
+    }
 
-    let status = cmd.status().unwrap().code().or(Some(1)).unwrap();
+    let status = cmd.status().unwrap().code().unwrap_or(1);
     std::process::exit(status);
 }

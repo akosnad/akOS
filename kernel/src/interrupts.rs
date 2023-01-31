@@ -1,9 +1,12 @@
 use acpi::InterruptModel;
 use conquer_once::spin::OnceCell;
-use spin::{self, Mutex};
-use x2apic::{lapic::LocalApic, ioapic::{RedirectionTableEntry, IrqFlags, IoApic}};
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use lazy_static::lazy_static;
+use spin::{self, Mutex};
+use x2apic::{
+    ioapic::{IoApic, IrqFlags, RedirectionTableEntry},
+    lapic::LocalApic,
+};
+use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
 pub static LAPIC: OnceCell<spin::Mutex<LocalApic>> = OnceCell::uninit();
 pub static IOAPIC: OnceCell<spin::Mutex<IoApic>> = OnceCell::uninit();
@@ -31,27 +34,26 @@ lazy_static! {
     };
 }
 
-
 const IOAPIC_INTERRUPT_INDEX_OFFSET: u8 = 40;
 const LAPIC_INTERRUPT_INDEX_OFFSET: u8 = 0x90;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum InterruptIndex {
-    _IoApic = IOAPIC_INTERRUPT_INDEX_OFFSET, // we reserve this 
+    _IoApic = IOAPIC_INTERRUPT_INDEX_OFFSET, // we reserve this
     Keyboard,
     ApicError = LAPIC_INTERRUPT_INDEX_OFFSET,
     Timer,
 }
 
-impl Into<u8> for InterruptIndex {
-    fn into(self) -> u8 {
-        self as u8
+impl From<InterruptIndex> for u8 {
+    fn from(val: InterruptIndex) -> Self {
+        val as u8
     }
 }
-impl Into<usize> for InterruptIndex {
-    fn into(self) -> usize {
-        self as usize
+impl From<InterruptIndex> for usize {
+    fn from(val: InterruptIndex) -> Self {
+        val as usize
     }
 }
 
@@ -60,21 +62,21 @@ impl Into<usize> for InterruptIndex {
 pub enum IoApicTableIndex {
     Keyboard = 1,
 }
-impl Into<u8> for IoApicTableIndex {
-    fn into(self) -> u8 {
-        self as u8
+impl From<IoApicTableIndex> for u8 {
+    fn from(val: IoApicTableIndex) -> Self {
+        val as u8
     }
 }
-impl Into<usize> for IoApicTableIndex {
-    fn into(self) -> usize {
-        self as usize
+impl From<IoApicTableIndex> for usize {
+    fn from(val: IoApicTableIndex) -> Self {
+        val as usize
     }
 }
 
 unsafe fn init_lapic(base_address: u64) {
     let mm = crate::mem::get_memory_manager();
     mm.identity_map_address(base_address)
-                    .unwrap_or_else(|e| panic!("can't map APIC base address: {:#?}", e));
+        .unwrap_or_else(|e| panic!("can't map APIC base address: {:#?}", e));
 
     let mut lapic = x2apic::lapic::LocalApicBuilder::new()
         .set_xapic_base(base_address)
@@ -88,16 +90,18 @@ unsafe fn init_lapic(base_address: u64) {
     #[cfg(feature = "dbg-interrupts")]
     log::debug!("apic id: {}, version: {}", lapic.id(), lapic.version());
 
-    LAPIC.init_once(|| { spin::Mutex::new(lapic) });
+    LAPIC.init_once(|| spin::Mutex::new(lapic));
 }
 
 unsafe fn init_io_apic(base_address: u64) {
-    let lapic = LAPIC.get().expect("should have the LAPIC initialized").lock();
+    let lapic = LAPIC
+        .get()
+        .expect("should have the LAPIC initialized")
+        .lock();
 
     let mm = crate::mem::get_memory_manager();
     mm.identity_map_address(base_address)
-            .unwrap_or_else(|e| panic!("can't map IO-APIC base address: {:#?}", e));
-
+        .unwrap_or_else(|e| panic!("can't map IO-APIC base address: {:#?}", e));
 
     let mut ioapic = x2apic::ioapic::IoApic::new(base_address);
     ioapic.init(IOAPIC_INTERRUPT_INDEX_OFFSET);
@@ -155,36 +159,51 @@ extern "x86-interrupt" fn general_protection_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: u64,
 ) {
-    panic!("EXCEPTION: GENERAL PROTECTION FAULT\nerror code: {}, {:#?}", error_code, stack_frame);
+    panic!(
+        "EXCEPTION: GENERAL PROTECTION FAULT\nerror code: {}, {:#?}",
+        error_code, stack_frame
+    );
 }
 
 extern "x86-interrupt" fn stack_segment_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: u64,
 ) {
-    panic!("EXCEPTION: SATCK SEGMENT FAULT\nerror code: {}, {:#?}", error_code, stack_frame);
+    panic!(
+        "EXCEPTION: SATCK SEGMENT FAULT\nerror code: {}, {:#?}",
+        error_code, stack_frame
+    );
 }
 
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: u64,
 ) -> ! {
-    panic!("EXCEPTION: DOUBLE FAULT\nerror code: {}, {:#?}", error_code, stack_frame);
+    panic!(
+        "EXCEPTION: DOUBLE FAULT\nerror code: {}, {:#?}",
+        error_code, stack_frame
+    );
 }
 
 extern "x86-interrupt" fn apic_error_handler(_stack_frame: InterruptStackFrame) {
     log::trace!("APIC ERROR CAUGHT");
     unsafe {
-        LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized")
-            .lock().end_of_interrupt();
+        LAPIC
+            .try_get()
+            .expect("tried to notify end of interrupt when local APIC was uninitialized")
+            .lock()
+            .end_of_interrupt();
     }
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-        crate::time::increment();
+    crate::time::increment();
     unsafe {
-        LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized")
-            .lock().end_of_interrupt();
+        LAPIC
+            .try_get()
+            .expect("tried to notify end of interrupt when local APIC was uninitialized")
+            .lock()
+            .end_of_interrupt();
     }
 }
 
@@ -196,7 +215,10 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     crate::task::keyboard::add_scancode(scancode);
 
     unsafe {
-        LAPIC.try_get().expect("tried to notify end of interrupt when local APIC was uninitialized")
-            .lock().end_of_interrupt();
+        LAPIC
+            .try_get()
+            .expect("tried to notify end of interrupt when local APIC was uninitialized")
+            .lock()
+            .end_of_interrupt();
     }
 }
