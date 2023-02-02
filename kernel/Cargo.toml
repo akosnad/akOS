@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["dbg"]
+default = []
 
 dbg = ["dbg-mem", "dbg-acpi", "dbg-interrupts", "dbg-executor"]
 dbg-mem = []
