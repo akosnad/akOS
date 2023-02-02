@@ -1,11 +1,10 @@
 use super::{Task, TaskId};
 use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
-use core::task::{Context, Poll, Waker};
+use core::{task::{Context, Poll, Waker}, fmt::Debug};
 use crossbeam_queue::ArrayQueue;
 
 static mut DUMP_STATE: bool = false;
 
-#[derive(Debug)]
 pub struct Executor {
     tasks: BTreeMap<TaskId, Task>,
     task_queue: Arc<ArrayQueue<TaskId>>,
@@ -78,12 +77,7 @@ impl Executor {
     }
 
     fn dump_state_inner(&self) {
-        log::trace!(
-            "executor state dump:\n{:#?}\n{:#?}\n{:#?}",
-            self.tasks,
-            self.task_queue,
-            self.waker_cache
-        );
+        log::trace!("executor state dump:\n{:#?}", self);
         unsafe {
             DUMP_STATE = false;
         }
@@ -102,6 +96,16 @@ impl Default for Executor {
             task_queue: Arc::new(ArrayQueue::new(1024)),
             waker_cache: BTreeMap::new(),
         }
+    }
+}
+
+impl Debug for Executor {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Executor")
+            .field("tasks", &self.tasks.values())
+            .field("task_queue", &self.task_queue)
+            .field("waker_cache", &self.waker_cache)
+            .finish()
     }
 }
 

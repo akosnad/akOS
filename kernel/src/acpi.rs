@@ -10,8 +10,7 @@ pub fn init(rsdp_addr: u64) -> AcpiTables<MemoryManager<'static>> {
     let acpi_tables =
         unsafe { AcpiTables::from_rsdp(mm, rsdp_addr as usize).expect("couldn't get ACPI tables") };
 
-    #[cfg(feature = "dbg-acpi")]
-    log::debug!("acpi revision: {}", acpi_tables.revision);
+    log::debug!("found acpi tables with revision: {}", acpi_tables.revision);
 
     #[cfg(feature = "dbg-acpi")]
     {
