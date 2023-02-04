@@ -1,4 +1,15 @@
+use spinning_top::Spinlock;
 use uart_16550::SerialPort;
+
+static SERIAL: Spinlock<Serial> = Spinlock::new(Serial::new());
+
+/// # Safety
+///
+/// This function is unsafe because it only should be called by the panic handler.
+/// This is needed to ensure that the framebuffer is available for printing panic messages.
+pub(crate) unsafe fn force_unlock() {
+    SERIAL.force_unlock();
+}
 
 pub struct Serial {
     port: SerialPort,
@@ -23,4 +34,33 @@ impl core::fmt::Write for Serial {
         }
         Ok(())
     }
+}
+
+unsafe impl Send for Serial {}
+unsafe impl Sync for Serial {}
+
+#[doc(hidden)]
+pub fn _print(args: ::core::fmt::Arguments) {
+    use core::fmt::Write;
+    use x86_64::instructions::interrupts;
+
+    interrupts::without_interrupts(|| {
+        SERIAL.lock().write_fmt(args).expect("print failed");
+    });
+}
+
+#[macro_export]
+macro_rules! print_serial {
+    ($($arg:tt)*) => {
+        $crate::serial::_print(format_args!($($arg)*));
+    };
+}
+
+#[macro_export]
+macro_rules! println_serial {
+    () => { $crate::print_serial!("\n"); };
+    ($fmt:expr) => { $crate::print_serial!(concat!($fmt, "\n")); };
+    ($fmt:expr, $($arg:tt)*) => {
+        $crate::print_serial!(concat!($fmt, "\n"), $($arg)*);
+    };
 }

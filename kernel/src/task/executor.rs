@@ -1,6 +1,9 @@
 use super::{Task, TaskId};
 use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
-use core::{task::{Context, Poll, Waker}, fmt::Debug};
+use core::{
+    fmt::Debug,
+    task::{Context, Poll, Waker},
+};
 use crossbeam_queue::ArrayQueue;
 
 static mut DUMP_STATE: bool = false;
@@ -41,6 +44,10 @@ impl Executor {
             let mut context = Context::from_waker(waker);
             match task.poll(&mut context) {
                 Poll::Ready(()) => {
+
+                    #[cfg(feature = "dbg-executor")]
+                    log::trace!("{:?} ready", task_id);
+
                     tasks.remove(&task_id);
                     waker_cache.remove(&task_id);
                 }

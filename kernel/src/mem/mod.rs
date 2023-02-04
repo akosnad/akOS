@@ -183,6 +183,8 @@ pub unsafe fn init(physical_memory_offset: VirtAddr, memory_regions: &'static Me
 
     allocator::extend(4 * Size2MiB::SIZE as usize)
         .unwrap_or_else(|e| panic!("failed to extend heap: {:#?}", e));
+
+    crate::kbuf::use_heap();
 }
 
 /// Returns a mutable reference to the active level 4 table.

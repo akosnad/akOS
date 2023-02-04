@@ -32,6 +32,7 @@ acpi = "4.1"
 uart_16550 = "0.2"
 pc-keyboard = "0.6"
 thiserror-no-std = "2.0"
+heapless = { version = "0.7", features = ["x86-sync-pool"] }
 
 [build-dependencies]
 chrono = "0.4"

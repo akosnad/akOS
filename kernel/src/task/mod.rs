@@ -1,5 +1,6 @@
 pub mod executor;
 pub mod keyboard;
+pub mod logger;
 
 use alloc::boxed::Box;
 use alloc::string::String;

@@ -10,6 +10,7 @@ use mem::MemoryManager;
 extern crate alloc;
 
 pub mod acpi;
+pub mod fb;
 pub mod gdt;
 pub mod interrupts;
 pub mod logger;
@@ -19,6 +20,7 @@ pub mod serial;
 pub mod task;
 pub mod time;
 pub mod util;
+pub mod kbuf;
 
 pub fn init(acpi_tables: Option<AcpiTables<MemoryManager>>) {
     gdt::init();
@@ -39,9 +41,13 @@ pub fn halt() -> ! {
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    unsafe { logger::LOGGER.force_unlock() };
-    log::error!("{}", info);
     x86_64::instructions::interrupts::disable();
+    unsafe { 
+        fb::force_unlock().ok();
+        serial::force_unlock();
+    }
+    println_serial!("\n{}", info);
+    println_fb!("\n{}", info);
     halt();
 }
 

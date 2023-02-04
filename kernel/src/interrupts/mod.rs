@@ -140,4 +140,3 @@ pub fn init(interrupt_model: Option<InterruptModel>) {
     }
     x86_64::instructions::interrupts::enable();
 }
-

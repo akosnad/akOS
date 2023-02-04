@@ -3,8 +3,9 @@
 
 extern crate alloc;
 
-use ak_os_kernel::{
-    logger, mem, println,
+use ak_os_kernel as lib;
+use lib::{
+    fb, logger, mem, println,
     task::{executor::Executor, keyboard, Task},
 };
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
@@ -35,6 +36,13 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     log::set_max_level(log::LevelFilter::Trace);
     log::debug!("hello from logger");
 
+    let fb = boot_info.framebuffer.as_mut().expect("no framebuffer");
+    let fb_info = fb.info();
+    let fb_array = fb.buffer_mut();
+    let fb_buffer =
+        unsafe { core::slice::from_raw_parts_mut(fb_array.as_mut_ptr(), fb_array.len()) };
+    fb::init(fb_buffer, fb_info);
+
     let physical_memory_offset = VirtAddr::new(
         boot_info
             .physical_memory_offset
@@ -43,25 +51,18 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     );
     unsafe { mem::init(physical_memory_offset, &boot_info.memory_regions) };
 
-    let fb = boot_info.framebuffer.as_mut().expect("no framebuffer");
-    let fb_info = fb.info();
-    let fb_array = fb.buffer_mut();
-    let fb_buffer =
-        unsafe { core::slice::from_raw_parts_mut(fb_array.as_mut_ptr(), fb_array.len()) };
-    logger::LOGGER.attach_framebuffer(fb_buffer, fb_info);
-    log::debug!("switched to framebuffer");
-
     let acpi_info = boot_info
         .rsdp_addr
         .into_option()
-        .map(ak_os_kernel::acpi::init);
+        .map(lib::acpi::init);
     if acpi_info.is_none() {
         log::warn!("no RSDP address provided for the kernel, ACPI initialization not possible");
     }
 
-    ak_os_kernel::init(acpi_info);
+    lib::init(acpi_info);
 
     let mut executor = Executor::default();
     executor.spawn(Task::new_with_name("keyboard", keyboard::process()));
+    executor.spawn(Task::new_with_name("logger", lib::task::logger::process()));
     executor.run();
 }
