@@ -138,7 +138,9 @@ pub fn _print(args: ::core::fmt::Arguments) {
         FRAMEBUFFER
             .try_get()
             .map(|fb| {
-                fb.lock().write_fmt(args).expect("print to framebuffer failed");
+                fb.lock()
+                    .write_fmt(args)
+                    .expect("print to framebuffer failed");
             })
             .expect("failed to get framebuffer");
     });

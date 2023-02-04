@@ -4,12 +4,12 @@
 extern crate alloc;
 
 use ak_os_kernel as lib;
+use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
+use core::env;
 use lib::{
     fb, logger, mem, println,
     task::{executor::Executor, keyboard, Task},
 };
-use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
-use core::env;
 use x86_64::VirtAddr;
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
@@ -51,10 +51,7 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     );
     unsafe { mem::init(physical_memory_offset, &boot_info.memory_regions) };
 
-    let acpi_info = boot_info
-        .rsdp_addr
-        .into_option()
-        .map(lib::acpi::init);
+    let acpi_info = boot_info.rsdp_addr.into_option().map(lib::acpi::init);
     if acpi_info.is_none() {
         log::warn!("no RSDP address provided for the kernel, ACPI initialization not possible");
     }

@@ -1,7 +1,13 @@
-use core::{pin::Pin, task::{Context, Poll}};
-use alloc::{string::{String, ToString}, vec::Vec};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
+use core::{
+    pin::Pin,
+    task::{Context, Poll},
+};
 use crossbeam_queue::SegQueue;
-use futures_util::{Stream, task::AtomicWaker, StreamExt};
+use futures_util::{task::AtomicWaker, Stream, StreamExt};
 use heapless::{HistoryBuffer, String as StaticString};
 
 static mut KBUF: KernelBuffer = KernelBuffer::new();
@@ -40,10 +46,7 @@ impl KernelBuffer {
             Self::Static(kbuf) => a = Some(kbuf.iter().map(|s| s.as_str())),
             Self::Heap(kbuf) => b = Some(kbuf.iter().map(|s| s.as_str())),
         }
-        a
-            .into_iter()
-            .flatten()
-            .chain(b.into_iter().flatten())
+        a.into_iter().flatten().chain(b.into_iter().flatten())
     }
 }
 impl core::fmt::Write for KernelBuffer {
@@ -74,7 +77,7 @@ impl Stream for KernelBuffer {
                     }
                     None => Poll::Pending,
                 }
-            },
+            }
         }
     }
 }

@@ -44,7 +44,6 @@ impl Executor {
             let mut context = Context::from_waker(waker);
             match task.poll(&mut context) {
                 Poll::Ready(()) => {
-
                     #[cfg(feature = "dbg-executor")]
                     log::trace!("{:?} ready", task_id);
 

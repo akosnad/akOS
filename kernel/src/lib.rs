@@ -13,6 +13,7 @@ pub mod acpi;
 pub mod fb;
 pub mod gdt;
 pub mod interrupts;
+pub mod kbuf;
 pub mod logger;
 pub mod mem;
 pub mod pci;
@@ -20,7 +21,6 @@ pub mod serial;
 pub mod task;
 pub mod time;
 pub mod util;
-pub mod kbuf;
 
 pub fn init(acpi_tables: Option<AcpiTables<MemoryManager>>) {
     gdt::init();
@@ -42,7 +42,7 @@ pub fn halt() -> ! {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     x86_64::instructions::interrupts::disable();
-    unsafe { 
+    unsafe {
         fb::force_unlock().ok();
         serial::force_unlock();
     }
