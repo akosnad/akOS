@@ -18,6 +18,11 @@ fn main() {
     };
     let disk_path_bios = disk_path.with_file_name("akOS_bios.img");
 
+    let pxe_path = {
+        let path = var("OUT_DIR").expect("no target dir");
+        PathBuf::from(path).join("pxe")
+    };
+
     let uefi_boot = bootloader::UefiBoot::new(&kernel_path);
     uefi_boot
         .create_disk_image(&disk_path)
@@ -26,6 +31,10 @@ fn main() {
     bios_boot
         .create_disk_image(&disk_path_bios)
         .expect("failed to create boot partition");
+
+    uefi_boot
+        .create_pxe_tftp_folder(&pxe_path)
+        .expect("failed to create pxe tftp folder");
 
     println!("cargo:rustc-env=UEFI_PATH={}", disk_path.display());
     println!("cargo:rustc-env=BIOS_PATH={}", disk_path_bios.display());
