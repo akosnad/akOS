@@ -60,6 +60,10 @@ pub fn test_runner(tests: &[&dyn Testable]) {
 
     println!("Kernel integration test results: {total_kernel_tests} total, {succeeded_kernel_tests} succeeded, {failed_kernel_tests} failed");
 
+    if failed_kernel_tests > 0 {
+        panic!("some tests failed, not conitnuing");
+    }
+
     println!("Runnig kernel unit tests...");
     let disk = build_test_disk(&target_dir, Path::new(&tests_dir).join(&kernel).as_path());
     run_in_qemu(&disk, Path::new(OVMF_PATH)).ok();

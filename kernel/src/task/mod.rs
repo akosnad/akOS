@@ -2,6 +2,8 @@ pub mod executor;
 pub mod keyboard;
 pub mod logger;
 
+pub use executor::Executor;
+
 use alloc::boxed::Box;
 use alloc::string::String;
 use core::sync::atomic::AtomicU64;

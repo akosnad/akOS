@@ -19,6 +19,7 @@ mod allocator;
 mod paging;
 
 pub use allocator::dump_heap_state;
+pub(crate) use allocator::force_unlock_allocator;
 
 static MEMORY_MANAGER: OnceCell<MemoryManager> = OnceCell::uninit();
 
@@ -185,6 +186,7 @@ pub unsafe fn init(physical_memory_offset: VirtAddr, memory_regions: &'static Me
         .unwrap_or_else(|e| panic!("failed to extend heap: {:#?}", e));
 
     crate::kbuf::use_heap();
+    crate::time::init();
 }
 
 /// Returns a mutable reference to the active level 4 table.

@@ -70,11 +70,11 @@ pub fn test_panic_handler(info: &core::panic::PanicInfo) -> ! {
     println!("[failed]");
     println!("Error: {}", info);
     exit_qemu(QemuExitCode::Failed);
-    halt();
 }
 
 #[alloc_error_handler]
 fn alloc_error(_layout: alloc::alloc::Layout) -> ! {
+    unsafe { mem::force_unlock_allocator() };
     mem::dump_heap_state();
     panic!("out of memory");
 }
@@ -86,11 +86,12 @@ pub enum QemuExitCode {
     Failed = 0x11,
 }
 
-pub fn exit_qemu(exit_code: QemuExitCode) {
+pub fn exit_qemu(exit_code: QemuExitCode) -> ! {
     use x86_64::instructions::port::Port;
 
     unsafe {
         let mut port = Port::new(0xf4);
         port.write(exit_code as u32);
     }
+    halt();
 }

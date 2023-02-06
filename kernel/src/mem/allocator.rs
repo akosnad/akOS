@@ -57,8 +57,8 @@ pub fn init_heap(
     Ok(())
 }
 
-// After we have an initial heap, the kernel has initialized its'
-// frame allocator, so we can use 2MiB pages.
+/// After we have an initial heap, the kernel has initialized its'
+/// frame allocator, so we can use 2MiB pages.
 pub fn extend(extension_size: usize) -> Result<(), MapToError<Size2MiB>> {
     let page_range = {
         let heap_extended_bottom = VirtAddr::new(ALLOCATOR.lock().top() as u64);
@@ -114,4 +114,13 @@ pub fn dump_heap_state() {
         size / K,
         ratio * 100.
     );
+}
+
+/// # Safety
+///
+/// This function is unsafe because it only should be called by the alloc error handler.
+/// This is needed to ensure that we can dump the allocator state while panicking, as an
+/// out-of-memory state panics for now.
+pub(crate) unsafe fn force_unlock_allocator() {
+    ALLOCATOR.force_unlock();
 }

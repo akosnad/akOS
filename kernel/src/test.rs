@@ -1,4 +1,4 @@
-use crate::{exit_qemu, halt, print, println, QemuExitCode};
+use crate::{exit_qemu, print, println, QemuExitCode};
 
 pub trait Testable {
     fn run(&self);
@@ -28,7 +28,6 @@ pub fn test_main() -> ! {
     // TODO
 
     exit_qemu(QemuExitCode::Success);
-    halt();
 }
 
 #[test_case]

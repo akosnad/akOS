@@ -47,6 +47,7 @@ dependencies = [
  "heapless",
  "lazy_static",
  "linked_list_allocator",
+ "lock_api",
  "log",
  "noto-sans-mono-bitmap",
  "pc-keyboard",

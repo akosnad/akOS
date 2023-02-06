@@ -68,6 +68,7 @@ impl Executor {
         } else {
             interrupts::enable();
         }
+        crate::time::wake_sleepers();
     }
 
     pub fn run(&mut self) -> ! {
