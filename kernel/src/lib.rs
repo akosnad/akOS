@@ -18,10 +18,12 @@ pub mod kbuf;
 pub mod logger;
 pub mod mem;
 pub mod pci;
+pub mod peripheral;
 pub mod serial;
 pub mod task;
 pub mod time;
 pub mod util;
+pub mod vt;
 
 #[cfg(feature = "test")]
 pub mod test;
@@ -38,6 +40,7 @@ pub fn init(acpi_tables: Option<AcpiTables<MemoryManager>>) {
     } else {
         interrupts::init(None);
     }
+    peripheral::init();
 }
 
 pub fn halt() -> ! {
