@@ -12,6 +12,8 @@ dbg-acpi = []
 dbg-interrupts = []
 dbg-executor = []
 
+test = []
+
 [dependencies]
 log = { version = "0.4", features = ["max_level_trace", "release_max_level_info"] }
 x86_64 = "0.14"

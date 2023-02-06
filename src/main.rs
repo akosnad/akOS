@@ -1,4 +1,11 @@
-use std::{path::Path, process::Command};
+#![feature(custom_test_frameworks)]
+#![test_runner(ak_os_tests_runner::test_runner)]
+#![reexport_test_harness_main = "test_main"]
+
+use std::path::Path;
+
+#[macro_use]
+extern crate command_macros;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -27,10 +34,10 @@ fn run_in_qemu(
     debug: bool,
     extra_args: Vec<&String>,
 ) {
-    let mut cmd = Command::new("qemu-system-x86_64");
-    cmd.arg("-serial").arg("stdio");
-    cmd.arg("-drive");
-    cmd.arg(format!("format=raw,file={}", uefi_gpt_path.display()));
+    let mut cmd =
+        command!(qemu-system-x86_64 -serial stdio -device isa-debug-exit,iobase=0xf4,iosize=0x04);
+    cmd.arg("-drive")
+        .arg(format!("format=raw,file={}", uefi_gpt_path.display()));
     if let Some(omvf_path) = omvf_path {
         cmd.arg("-bios").arg(omvf_path);
     }

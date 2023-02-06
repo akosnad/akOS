@@ -5,13 +5,8 @@ extern crate alloc;
 
 use ak_os_kernel as lib;
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
-use core::env;
-use lib::{
-    fb, logger, mem, println,
-    task::{executor::Executor, keyboard, Task},
-};
-use x86_64::VirtAddr;
 
+#[cfg(not(feature = "test"))]
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
     config.mappings.physical_memory = Some(Mapping::Dynamic);
@@ -20,9 +15,17 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     config
 };
 
+#[cfg(not(feature = "test"))]
 entry_point!(main, config = &BOOTLOADER_CONFIG);
 
+#[cfg(not(feature = "test"))]
 fn main(boot_info: &'static mut BootInfo) -> ! {
+    use lib::{
+        fb, logger, mem, println,
+        task::{executor::Executor, keyboard, Task},
+    };
+    use x86_64::VirtAddr;
+
     println!(
         "akOS kernel {} ({}) {} ({})",
         env!("CARGO_PKG_VERSION"),
@@ -62,4 +65,37 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     executor.spawn(Task::new_with_name("keyboard", keyboard::process()));
     executor.spawn(Task::new_with_name("logger", lib::task::logger::process()));
     executor.run();
+}
+
+#[cfg(feature = "test")]
+static TEST_BOOTLOADER_CONFIG: BootloaderConfig = {
+    let mut config = BootloaderConfig::new_default();
+    config.mappings.physical_memory = Some(Mapping::Dynamic);
+    config
+};
+
+#[cfg(feature = "test")]
+entry_point!(test_kernel_main, config = &TEST_BOOTLOADER_CONFIG);
+
+#[cfg(feature = "test")]
+fn test_kernel_main(boot_info: &'static mut BootInfo) -> ! {
+    use lib::{fb, mem};
+
+    let fb = boot_info.framebuffer.as_mut().expect("no framebuffer");
+    let fb_info = fb.info();
+    let fb_array = fb.buffer_mut();
+    let fb_buffer =
+        unsafe { core::slice::from_raw_parts_mut(fb_array.as_mut_ptr(), fb_array.len()) };
+    fb::init(fb_buffer, fb_info);
+
+    let physical_memory_offset = x86_64::VirtAddr::new(
+        boot_info
+            .physical_memory_offset
+            .into_option()
+            .expect("no physical_memory_offset"),
+    );
+    unsafe { mem::init(physical_memory_offset, &boot_info.memory_regions) };
+
+    lib::init(None);
+    lib::test_main();
 }

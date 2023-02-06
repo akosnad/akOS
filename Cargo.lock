@@ -14,12 +14,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "aho-corasick"
+version = "0.7.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc936419f96fa211c1b9166887b38e5e40b19958e5b895be7c1f93adec7071ac"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "ak_os"
 version = "0.1.0"
 dependencies = [
  "ak_os-kernel",
+ "ak_os-tests-runner",
  "bootloader",
  "build-time",
+ "command-macros",
 ]
 
 [[package]]
@@ -47,6 +58,16 @@ dependencies = [
  "x2apic",
  "x86",
  "x86_64",
+]
+
+[[package]]
+name = "ak_os-tests-runner"
+version = "0.1.0"
+dependencies = [
+ "bootloader",
+ "command-macros",
+ "regex",
+ "thiserror",
 ]
 
 [[package]]
@@ -174,6 +195,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "command-macros"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "246a765b3097ef3ace86928361a05c5b6a18147b0fb4031ccbcd46ffbacacc47"
+dependencies = [
+ "command-macros-plugin",
+]
+
+[[package]]
+name = "command-macros-plugin"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf17b2dfdf3def935c1dae8f627d1c734661d95b32e98ec8bd0920accde9d117"
+dependencies = [
+ "itertools",
+]
+
+[[package]]
 name = "conquer-once"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -221,6 +260,12 @@ checksum = "51887d4adc7b564537b15adcfb307936f8075dfcd5f00dde9a9f1d29383682bc"
 dependencies = [
  "cfg-if",
 ]
+
+[[package]]
+name = "either"
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91"
 
 [[package]]
 name = "fastrand"
@@ -328,6 +373,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.7.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d47946d458e94a1b7bcabbf6521ea7c037062c81f534615abcad76e84d4970d"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -388,6 +442,12 @@ dependencies = [
  "serde-big-array",
  "thiserror",
 ]
+
+[[package]]
+name = "memchr"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "noto-sans-mono-bitmap"
@@ -494,6 +554,23 @@ checksum = "fb5a58c1855b4b6819d59012155603f0b22ad30cad752600aadfcb695265519a"
 dependencies = [
  "bitflags",
 ]
+
+[[package]]
+name = "regex"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48aaa5748ba571fb95cd2c85c09f629215d3a6ece942baa100950af03a34f733"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-syntax",
+]
+
+[[package]]
+name = "regex-syntax"
+version = "0.6.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
 name = "remove_dir_all"

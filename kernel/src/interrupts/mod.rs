@@ -135,8 +135,8 @@ pub fn init(interrupt_model: Option<InterruptModel>) {
                 init_io_apic(ioapic.address as u64);
             }
         }
+        x86_64::instructions::interrupts::enable();
     } else {
-        panic!("unsupported interrupt model, no APIC was found");
+        log::warn!("unsupported interrupt model, no APIC was found");
     }
-    x86_64::instructions::interrupts::enable();
 }
