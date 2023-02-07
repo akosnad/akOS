@@ -74,7 +74,7 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: Interrupt
 
     let mut port = Port::new(0x60);
     let scancode: u8 = unsafe { port.read() };
-    crate::task::keyboard::add_scancode(scancode);
+    crate::task::keyboard::write(scancode);
 
     eoi();
 }
@@ -84,8 +84,7 @@ pub extern "x86-interrupt" fn mouse_interrupt_handler(_stack_frame: InterruptSta
 
     let mut port = Port::new(0x60);
     let packet: u8 = unsafe { port.read() };
-
-    crate::task::mouse::add_packet(packet);
+    crate::task::mouse::write(packet);
 
     eoi();
 }
