@@ -160,7 +160,6 @@ pub fn init(interrupt_model: Option<InterruptModel>) {
     #[cfg(feature = "dbg-interrupts")]
     log::trace!("loading IDT at: {:p}", &IDT);
 
-
     // Disable ps/2 to not mess up initialization
     let mut cmd = x86_64::instructions::port::Port::<u8>::new(0x64);
     unsafe {

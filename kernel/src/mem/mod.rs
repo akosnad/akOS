@@ -12,8 +12,8 @@ use x86_64::{
     PhysAddr, VirtAddr,
 };
 
-use crate::util::Spinlock;
 use self::paging::{BootInfoFrameAllocator, KernelFrameAllocator};
+use crate::util::Spinlock;
 
 mod allocator;
 mod paging;

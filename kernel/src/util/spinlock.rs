@@ -121,12 +121,16 @@ unsafe impl<T> Sync for Spinlock<T> {}
 
 impl<T: Default> Default for Spinlock<T> {
     fn default() -> Self {
-        Self { mutex: Mutex::new(T::default()) }
+        Self {
+            mutex: Mutex::new(T::default()),
+        }
     }
 }
 
 impl<T: core::fmt::Debug> core::fmt::Debug for Spinlock<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Spinlock").field("mutex", &self.mutex).finish()
+        f.debug_struct("Spinlock")
+            .field("mutex", &self.mutex)
+            .finish()
     }
 }

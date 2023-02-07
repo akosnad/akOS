@@ -1,9 +1,9 @@
+use crate::util::Spinlock;
 use bootloader_api::info::{FrameBufferInfo, PixelFormat};
 use conquer_once::{spin::OnceCell, TryGetError};
 use noto_sans_mono_bitmap::{
     get_raster, get_raster_width, FontWeight, RasterHeight, RasterizedChar,
 };
-use crate::util::Spinlock;
 
 const VSPACE: usize = noto_sans_mono_bitmap::RasterHeight::Size16 as usize;
 
