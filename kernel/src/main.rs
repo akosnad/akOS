@@ -22,7 +22,7 @@ entry_point!(main, config = &BOOTLOADER_CONFIG);
 fn main(boot_info: &'static mut BootInfo) -> ! {
     use lib::{
         fb, logger, mem, println,
-        task::{executor::Executor, keyboard, Task},
+        task::{executor::Executor, Task},
     };
     use x86_64::VirtAddr;
 
@@ -62,8 +62,12 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     lib::init(acpi_info);
 
     let mut executor = Executor::default();
-    executor.spawn(Task::new_with_name("keyboard", keyboard::process()));
     executor.spawn(Task::new_with_name("logger", lib::task::logger::process()));
+    executor.spawn(Task::new_with_name(
+        "keyboard",
+        lib::task::keyboard::process(),
+    ));
+    executor.spawn(Task::new_with_name("mouse", lib::task::mouse::process()));
     executor.run();
 }
 

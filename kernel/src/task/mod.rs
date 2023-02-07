@@ -1,6 +1,7 @@
 pub mod executor;
 pub mod keyboard;
 pub mod logger;
+pub mod mouse;
 
 pub use executor::Executor;
 

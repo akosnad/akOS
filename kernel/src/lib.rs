@@ -23,7 +23,6 @@ pub mod serial;
 pub mod task;
 pub mod time;
 pub mod util;
-pub mod vt;
 
 #[cfg(feature = "test")]
 pub mod test;

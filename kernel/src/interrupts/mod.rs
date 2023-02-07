@@ -33,6 +33,7 @@ lazy_static! {
         idt[InterruptIndex::ApicError.into()].set_handler_fn(apic_error_handler);
         idt[InterruptIndex::Timer.into()].set_handler_fn(timer_interrupt_handler);
         idt[InterruptIndex::Keyboard.into()].set_handler_fn(keyboard_interrupt_handler);
+        idt[InterruptIndex::Mouse.into()].set_handler_fn(mouse_interrupt_handler);
         idt
     };
 }
@@ -45,6 +46,7 @@ const LAPIC_INTERRUPT_INDEX_OFFSET: u8 = 0x90;
 pub enum InterruptIndex {
     _IoApic = IOAPIC_INTERRUPT_INDEX_OFFSET, // we reserve this
     Keyboard,
+    Mouse = IOAPIC_INTERRUPT_INDEX_OFFSET + 12,
     ApicError = LAPIC_INTERRUPT_INDEX_OFFSET,
     Timer,
 }
@@ -64,6 +66,7 @@ impl From<InterruptIndex> for usize {
 #[repr(u8)]
 pub enum IoApicTableIndex {
     Keyboard = 1,
+    Mouse = 12,
 }
 impl From<IoApicTableIndex> for u8 {
     fn from(val: IoApicTableIndex) -> Self {
@@ -96,6 +99,16 @@ unsafe fn init_lapic(base_address: u64) {
     LAPIC.init_once(|| spin::Mutex::new(lapic));
 }
 
+unsafe fn register_io_apic_entry(ioapic: &mut IoApic, lapic_id: u8, int_index: u8, irq_index: u8) {
+    let mut entry = RedirectionTableEntry::default();
+    entry.set_mode(x2apic::ioapic::IrqMode::Fixed);
+    entry.set_dest(lapic_id);
+    entry.set_vector(int_index);
+    entry.set_flags(IrqFlags::LEVEL_TRIGGERED | IrqFlags::LOW_ACTIVE | IrqFlags::MASKED);
+    ioapic.set_table_entry(irq_index, entry);
+    ioapic.enable_irq(irq_index);
+}
+
 unsafe fn init_io_apic(base_address: u64) {
     let lapic = LAPIC
         .get()
@@ -112,13 +125,30 @@ unsafe fn init_io_apic(base_address: u64) {
     #[cfg(feature = "dbg-interrupts")]
     log::debug!("ioapic id: {}, version: {}", ioapic.id(), ioapic.version());
 
-    let mut entry = RedirectionTableEntry::default();
-    entry.set_mode(x2apic::ioapic::IrqMode::Fixed);
-    entry.set_dest(lapic.id() as u8);
-    entry.set_vector(InterruptIndex::Keyboard.into());
-    entry.set_flags(IrqFlags::LEVEL_TRIGGERED | IrqFlags::LOW_ACTIVE | IrqFlags::MASKED);
-    ioapic.set_table_entry(IoApicTableIndex::Keyboard.into(), entry);
-    ioapic.enable_irq(IoApicTableIndex::Keyboard.into());
+    register_io_apic_entry(
+        &mut ioapic,
+        lapic.id() as u8,
+        InterruptIndex::Keyboard.into(),
+        IoApicTableIndex::Keyboard.into(),
+    );
+    register_io_apic_entry(
+        &mut ioapic,
+        lapic.id() as u8,
+        InterruptIndex::Mouse.into(),
+        IoApicTableIndex::Mouse.into(),
+    );
+
+    // enable the keyboard and mouse
+    // FIXME: this should be done in the keyboard and mouse driver
+    // TODO: USB Legacy Suport would be a step up
+    let mut cmd = x86_64::instructions::port::Port::<u8>::new(0x64);
+    let mut data = x86_64::instructions::port::Port::<u8>::new(0x60);
+    unsafe {
+        cmd.write(0xae); // enable keyboard port
+        cmd.write(0xa8); // enable mouse port
+        cmd.write(0xd4); // tell mouse to expect a command
+        data.write(0xf4); // enable mouse
+    }
 
     IOAPIC.init_once(|| Mutex::new(ioapic));
 }

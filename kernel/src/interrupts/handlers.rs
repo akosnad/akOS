@@ -78,3 +78,14 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: Interrupt
 
     eoi();
 }
+
+pub extern "x86-interrupt" fn mouse_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    use x86_64::instructions::port::Port;
+
+    let mut port = Port::new(0x60);
+    let packet: u8 = unsafe { port.read() };
+
+    crate::task::mouse::add_packet(packet);
+
+    eoi();
+}
