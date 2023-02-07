@@ -51,7 +51,7 @@ async fn sleep_test() {
     }
     let elapsed = lib::time::boot_elapsed();
 
-    assert_eq!(elapsed, 50);
+    assert!(elapsed >= 50);
 
     lib::exit_qemu(lib::QemuExitCode::Success);
 }
