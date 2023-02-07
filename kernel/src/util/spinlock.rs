@@ -82,12 +82,19 @@ pub struct Spinlock<T> {
 }
 
 impl<T> Spinlock<T> {
-    pub fn new(data: T) -> Self {
+    pub const fn new(data: T) -> Self {
         Self {
             mutex: Mutex::new(data),
         }
     }
 
+    /// Lock the spinlock synchronously and return the underlying data as a `SpinlockGuard`.
+    pub fn lock_sync(&self) -> SpinlockGuard<'_, T> {
+        self.mutex.lock()
+    }
+
+    /// Lock the spinlock asynchronously and return the underlying data as a `SpinlockGuard` after
+    /// resolving the future.
     pub fn lock(&self) -> SpinlockGuardFuture<T> {
         SpinlockGuardFuture { lock: Some(self) }
     }
@@ -99,7 +106,27 @@ impl<T> Spinlock<T> {
     pub fn is_locked(&self) -> bool {
         self.mutex.is_locked()
     }
+
+    /// # Safety
+    ///
+    /// This function is unsafe because it only should be called if the lock is held by the current
+    /// thread/task. Otherwise undefined behavior will occur.
+    pub unsafe fn force_unlock(&self) {
+        self.mutex.force_unlock()
+    }
 }
 
 unsafe impl<T> Send for Spinlock<T> {}
 unsafe impl<T> Sync for Spinlock<T> {}
+
+impl<T: Default> Default for Spinlock<T> {
+    fn default() -> Self {
+        Self { mutex: Mutex::new(T::default()) }
+    }
+}
+
+impl<T: core::fmt::Debug> core::fmt::Debug for Spinlock<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Spinlock").field("mutex", &self.mutex).finish()
+    }
+}

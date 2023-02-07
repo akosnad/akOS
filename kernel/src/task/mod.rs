@@ -101,9 +101,7 @@ macro_rules! stream_processor_task {
             type Item = $stream_type;
 
             fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<$stream_type>> {
-                let queue = QUEUE
-                    .try_get()
-                    .expect("queue should be initialized by now");
+                let queue = QUEUE.try_get().expect("queue should be initialized by now");
 
                 // fast
                 if let Some(sc) = queue.pop() {

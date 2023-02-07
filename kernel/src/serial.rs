@@ -1,5 +1,6 @@
-use spinning_top::Spinlock;
 use uart_16550::SerialPort;
+
+use crate::util::Spinlock;
 
 static SERIAL: Spinlock<Serial> = Spinlock::new(Serial::new());
 
@@ -45,7 +46,7 @@ pub fn _print(args: ::core::fmt::Arguments) {
     use x86_64::instructions::interrupts;
 
     interrupts::without_interrupts(|| {
-        SERIAL.lock().write_fmt(args).expect("print failed");
+        SERIAL.lock_sync().write_fmt(args).expect("print failed");
     });
 }
 

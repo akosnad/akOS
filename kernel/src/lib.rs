@@ -53,8 +53,8 @@ pub fn halt() -> ! {
 fn panic(info: &core::panic::PanicInfo) -> ! {
     x86_64::instructions::interrupts::disable();
     unsafe {
-        fb::force_unlock().ok();
         serial::force_unlock();
+        fb::force_unlock().ok();
     }
     println_serial!("\n{}", info);
     println_fb!("\n{}", info);

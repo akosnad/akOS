@@ -3,7 +3,7 @@ use conquer_once::{spin::OnceCell, TryGetError};
 use noto_sans_mono_bitmap::{
     get_raster, get_raster_width, FontWeight, RasterHeight, RasterizedChar,
 };
-use spinning_top::Spinlock;
+use crate::util::Spinlock;
 
 const VSPACE: usize = noto_sans_mono_bitmap::RasterHeight::Size16 as usize;
 
@@ -138,7 +138,7 @@ pub fn _print(args: ::core::fmt::Arguments) {
         FRAMEBUFFER
             .try_get()
             .map(|fb| {
-                fb.lock()
+                fb.lock_sync()
                     .write_fmt(args)
                     .expect("print to framebuffer failed");
             })

@@ -7,7 +7,7 @@ fn eoi() {
         super::LAPIC
             .try_get()
             .expect("tried to notify end of interrupt when local APIC was uninitialized")
-            .lock()
+            .lock_sync()
             .end_of_interrupt();
     }
 }

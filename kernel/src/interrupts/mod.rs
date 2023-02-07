@@ -1,18 +1,19 @@
 use acpi::InterruptModel;
 use conquer_once::spin::OnceCell;
 use lazy_static::lazy_static;
-use spin::{self, Mutex};
 use x2apic::{
     ioapic::{IoApic, IrqFlags, RedirectionTableEntry},
     lapic::LocalApic,
 };
 use x86_64::structures::idt::InterruptDescriptorTable;
 
+use crate::util::Spinlock;
+
 mod handlers;
 use handlers::*;
 
-pub static LAPIC: OnceCell<spin::Mutex<LocalApic>> = OnceCell::uninit();
-pub static IOAPIC: OnceCell<spin::Mutex<IoApic>> = OnceCell::uninit();
+pub static LAPIC: OnceCell<Spinlock<LocalApic>> = OnceCell::uninit();
+pub static IOAPIC: OnceCell<Spinlock<IoApic>> = OnceCell::uninit();
 
 lazy_static! {
     #[derive(Debug)]
@@ -96,7 +97,7 @@ unsafe fn init_lapic(base_address: u64) {
     #[cfg(feature = "dbg-interrupts")]
     log::debug!("apic id: {}, version: {}", lapic.id(), lapic.version());
 
-    LAPIC.init_once(|| spin::Mutex::new(lapic));
+    LAPIC.init_once(|| Spinlock::new(lapic));
 }
 
 unsafe fn register_io_apic_entry(ioapic: &mut IoApic, lapic_id: u8, int_index: u8, irq_index: u8) {
@@ -113,7 +114,7 @@ unsafe fn init_io_apic(base_address: u64) {
     let lapic = LAPIC
         .get()
         .expect("should have the LAPIC initialized")
-        .lock();
+        .lock_sync();
 
     let mm = crate::mem::get_memory_manager();
     mm.identity_map_address(base_address)
@@ -138,6 +139,8 @@ unsafe fn init_io_apic(base_address: u64) {
         IoApicTableIndex::Mouse.into(),
     );
 
+    drop(lapic);
+
     // enable the keyboard and mouse
     // FIXME: this should be done in the keyboard and mouse driver
     // TODO: USB Legacy Suport would be a step up
@@ -146,18 +149,33 @@ unsafe fn init_io_apic(base_address: u64) {
     unsafe {
         cmd.write(0xae); // enable keyboard port
         cmd.write(0xa8); // enable mouse port
-        cmd.write(0xd4); // tell mouse to expect a command
+        cmd.write(0xd4); // signal that next write is to mouse input buffer
         data.write(0xf4); // enable mouse
     }
 
-    IOAPIC.init_once(|| Mutex::new(ioapic));
+    IOAPIC.init_once(|| Spinlock::new(ioapic));
 }
 
 pub fn init(interrupt_model: Option<InterruptModel>) {
     #[cfg(feature = "dbg-interrupts")]
     log::trace!("loading IDT at: {:p}", &IDT);
 
+
+    // Disable ps/2 to not mess up initialization
+    let mut cmd = x86_64::instructions::port::Port::<u8>::new(0x64);
+    unsafe {
+        cmd.write(0xad); // disable keyboard port
+        cmd.write(0xa7); // disable mouse port
+    }
+    // flush ps/2 buffer
+    let mut data = x86_64::instructions::port::Port::<u8>::new(0x60);
+    unsafe {
+        // if bit 0 is unset, the buffer is empty
+        while (data.read() & 0x1) == 1 {}
+    }
+
     IDT.load();
+
     if let Some(InterruptModel::Apic(model)) = interrupt_model {
         unsafe {
             init_lapic(model.local_apic_address);

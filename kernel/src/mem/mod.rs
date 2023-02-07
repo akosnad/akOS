@@ -3,7 +3,6 @@ use alloc::sync::Arc;
 use bootloader_api::info::MemoryRegions;
 use conquer_once::spin::OnceCell;
 use core::{ops::DerefMut, ptr};
-use spin::Mutex;
 use x86_64::{
     structures::paging::{
         mapper::{MapToError, UnmapError},
@@ -13,6 +12,7 @@ use x86_64::{
     PhysAddr, VirtAddr,
 };
 
+use crate::util::Spinlock;
 use self::paging::{BootInfoFrameAllocator, KernelFrameAllocator};
 
 mod allocator;
@@ -32,8 +32,8 @@ pub fn get_memory_manager() -> MemoryManager<'static> {
 
 #[derive(Debug, Clone)]
 pub struct MemoryManager<'a> {
-    page_table: Arc<Mutex<OffsetPageTable<'a>>>,
-    frame_allocator: Arc<Mutex<KernelFrameAllocator>>,
+    page_table: Arc<Spinlock<OffsetPageTable<'a>>>,
+    frame_allocator: Arc<Spinlock<KernelFrameAllocator>>,
 }
 
 impl MemoryManager<'_> {
@@ -43,11 +43,11 @@ impl MemoryManager<'_> {
 
         unsafe {
             self.page_table
-                .lock()
+                .lock_sync()
                 .identity_map(
                     frame,
                     PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-                    self.frame_allocator.lock().deref_mut(),
+                    self.frame_allocator.lock_sync().deref_mut(),
                 )?
                 .flush();
         }
@@ -75,17 +75,17 @@ macro_rules! gen_map_impl {
 
                 let frame: PhysFrame<$Size> = self
                     .frame_allocator
-                    .lock()
+                    .lock_sync()
                     .allocate_frame()
                     .expect("cannot allocate frame");
                 unsafe {
                     self.page_table
-                        .lock()
+                        .lock_sync()
                         .map_to(
                             page,
                             frame,
                             PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-                            self.frame_allocator.lock().deref_mut(),
+                            self.frame_allocator.lock_sync().deref_mut(),
                         )?
                         .flush();
                 }
@@ -95,12 +95,12 @@ macro_rules! gen_map_impl {
                 #[cfg(feature = "dbg-mem")]
                 log::trace!("unmapping page: {:x?}", page);
 
-                let frame = self.page_table.lock().unmap(page).and_then(|p| {
+                let frame = self.page_table.lock_sync().unmap(page).and_then(|p| {
                     p.1.flush();
                     Ok(p.0)
                 })?;
                 unsafe {
-                    self.frame_allocator.lock().deallocate_frame(frame);
+                    self.frame_allocator.lock_sync().deallocate_frame(frame);
                 }
                 Ok(())
             }
@@ -176,8 +176,8 @@ pub unsafe fn init(physical_memory_offset: VirtAddr, memory_regions: &'static Me
     .unwrap_or_else(|e| panic!("heap init failed: {:#?}", e));
 
     MEMORY_MANAGER.init_once(|| MemoryManager {
-        page_table: Arc::new(Mutex::new(page_table)),
-        frame_allocator: Arc::new(Mutex::new(KernelFrameAllocator::init(
+        page_table: Arc::new(Spinlock::new(page_table)),
+        frame_allocator: Arc::new(Spinlock::new(KernelFrameAllocator::init(
             &initial_frame_allocator,
         ))),
     });

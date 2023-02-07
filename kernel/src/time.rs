@@ -6,7 +6,8 @@ use core::{
 };
 use crossbeam_utils::atomic::AtomicCell;
 use futures_util::{task::AtomicWaker, Future};
-use spinning_top::Spinlock;
+
+use crate::util::Spinlock;
 
 static TIME: OnceCell<Time> = OnceCell::uninit();
 
@@ -29,7 +30,7 @@ pub(crate) fn increment() {
 }
 
 pub(crate) fn wake_sleepers() {
-    for s in TIME.get().unwrap().sleepers.lock().iter() {
+    for s in TIME.get().unwrap().sleepers.lock_sync().iter() {
         if s.is_done() {
             s.waker.wake();
         }
@@ -87,6 +88,6 @@ impl Future for SleepCounterFuture<'_> {
 
 pub async fn sleep(n: u64) {
     let s = Arc::new(SleepCounter::new(n));
-    TIME.get().unwrap().sleepers.lock().push(s.clone());
+    TIME.get().unwrap().sleepers.lock().await.push(s.clone());
     s.wait().await;
 }

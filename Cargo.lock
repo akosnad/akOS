@@ -54,7 +54,6 @@ dependencies = [
  "pic8259",
  "ps2-mouse",
  "spin 0.9.4",
- "spinning_top",
  "thiserror-no-std",
  "uart_16550",
  "x2apic",
