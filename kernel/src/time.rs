@@ -26,11 +26,20 @@ pub fn boot_elapsed() -> u64 {
 }
 
 pub(crate) fn increment() {
-    TIME.get().unwrap().boot_elapsed.fetch_add(1);
+    TIME.get()
+        .expect("tried to increment timer before initialization")
+        .boot_elapsed
+        .fetch_add(1);
 }
 
 pub(crate) fn wake_sleepers() {
-    for s in TIME.get().unwrap().sleepers.lock_sync().iter() {
+    for s in TIME
+        .get()
+        .expect("tried to wake sleeping timers on uninitialized timer")
+        .sleepers
+        .lock_sync()
+        .iter()
+    {
         if s.is_done() {
             s.waker.wake();
         }
@@ -88,6 +97,11 @@ impl Future for SleepCounterFuture<'_> {
 
 pub async fn sleep(n: u64) {
     let s = Arc::new(SleepCounter::new(n));
-    TIME.get().unwrap().sleepers.lock().await.push(s.clone());
+    TIME.get()
+        .expect("tried to sleep before timer was initialized")
+        .sleepers
+        .lock()
+        .await
+        .push(s.clone());
     s.wait().await;
 }

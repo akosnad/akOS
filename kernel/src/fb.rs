@@ -77,7 +77,11 @@ impl Framebuffer {
                     self.x += (TAB_SIZE - (self.x % TAB_SIZE)) * BITMAP_WIDTH;
                     return;
                 }
-                let bitmap_char = get_raster(c, FontWeight::Regular, RasterHeight::Size16).unwrap();
+                let bitmap_char = get_raster(c, FontWeight::Regular, RasterHeight::Size16)
+                    .unwrap_or_else(|| {
+                        get_raster('?', FontWeight::Regular, RasterHeight::Size16)
+                            .expect("should have a ? raster")
+                    });
                 self.write_rendered(bitmap_char);
             }
         }

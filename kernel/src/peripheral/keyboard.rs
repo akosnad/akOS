@@ -32,22 +32,24 @@ impl Keyboard {
     }
     pub async fn add(&self, scancode: u8) {
         let mut dev = self.dev.lock().await;
-        if let Some(ev) = dev.add_byte(scancode).unwrap() {
+        if let Some(ev) = dev
+            .add_byte(scancode)
+            .expect("failed to add byte to keyboard device processor")
+        {
             let key = dev.process_keyevent(ev.clone());
             drop(dev);
 
-            if key.is_some() {
-                match key.unwrap() {
+            match key {
+                Some(key) => match key {
                     Unicode(c) => {
                         print!("{}", c);
                     }
                     RawKey(_) => {}
-                }
-            } else {
-                match ev.state {
+                },
+                None => match ev.state {
                     Up => {}
                     Down | SingleShot => {}
-                }
+                },
             }
         }
     }

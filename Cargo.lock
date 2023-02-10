@@ -40,6 +40,7 @@ dependencies = [
  "acpi",
  "bootloader_api",
  "chrono",
+ "command-macros",
  "conquer-once",
  "crossbeam-queue",
  "crossbeam-utils",

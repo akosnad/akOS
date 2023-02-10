@@ -48,6 +48,10 @@ fn run_in_qemu(
         cmd.arg(arg);
     }
 
-    let status = cmd.status().unwrap().code().unwrap_or(1);
+    let status = cmd
+        .status()
+        .expect("failed to run qemu")
+        .code()
+        .unwrap_or(1);
     std::process::exit(status);
 }

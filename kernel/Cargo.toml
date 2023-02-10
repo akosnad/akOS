@@ -38,3 +38,4 @@ lock_api = "0.4"
 
 [build-dependencies]
 chrono = "0.4"
+command-macros = { version = "0.2", features = ["nightly"] }
