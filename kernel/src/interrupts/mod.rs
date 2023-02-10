@@ -173,6 +173,8 @@ pub fn init(interrupt_model: Option<InterruptModel>) {
         while (data.read() & 0x1) == 1 {}
     }
 
+    x86_64::instructions::interrupts::disable();
+
     IDT.load();
 
     if let Some(InterruptModel::Apic(model)) = interrupt_model {
@@ -182,7 +184,6 @@ pub fn init(interrupt_model: Option<InterruptModel>) {
                 init_io_apic(ioapic.address as u64);
             }
         }
-        x86_64::instructions::interrupts::enable();
     } else {
         log::warn!("unsupported interrupt model, no APIC was found");
     }

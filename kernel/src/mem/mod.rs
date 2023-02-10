@@ -12,11 +12,11 @@ use x86_64::{
     PhysAddr, VirtAddr,
 };
 
-use self::paging::{BootInfoFrameAllocator, KernelFrameAllocator};
+use self::frame_allocator::{BootInfoFrameAllocator, KernelFrameAllocator};
 use crate::util::Spinlock;
 
 mod allocator;
-mod paging;
+mod frame_allocator;
 
 pub use allocator::dump_heap_state;
 pub(crate) use allocator::force_unlock_allocator;

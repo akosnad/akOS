@@ -10,10 +10,10 @@ use linked_list_allocator::LockedHeap;
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-/// This virtual address marks where the extended heap will start.
+/// This virtual address marks where the extended heap will start. It is aligned to 1 GiB.
 ///
 /// Below this address is where the initial heap is, which should be small.
-pub const EXTENDED_HEAP_START: u64 = 0x_4444_4440_0000;
+pub const EXTENDED_HEAP_START: u64 = 0x_4446_0000_0000;
 
 pub fn init_heap(
     mapper: &mut (impl Mapper<Size4KiB> + '_),
@@ -63,8 +63,7 @@ pub fn extend(extension_size: usize) -> Result<(), MapToError<Size2MiB>> {
     let page_range = {
         let heap_extended_bottom = VirtAddr::new(ALLOCATOR.lock().top() as u64);
         let heap_extended_top = heap_extended_bottom + extension_size - 1u64;
-        let heap_extended_bottom_page: Page<Size2MiB> =
-            Page::containing_address(heap_extended_bottom);
+        let heap_extended_bottom_page = Page::containing_address(heap_extended_bottom);
         let heap_extended_top_page = Page::containing_address(heap_extended_top);
         Page::range_inclusive(heap_extended_bottom_page, heap_extended_top_page)
     };

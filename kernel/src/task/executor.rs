@@ -7,6 +7,7 @@ use core::{
 use crossbeam_queue::ArrayQueue;
 
 static mut DUMP_STATE: bool = false;
+pub static mut RUNNIG: bool = false;
 
 pub struct Executor {
     tasks: BTreeMap<TaskId, Task>,
@@ -72,6 +73,7 @@ impl Executor {
     }
 
     pub fn run(&mut self) -> ! {
+        unsafe { RUNNIG = true };
         loop {
             unsafe {
                 if DUMP_STATE {
