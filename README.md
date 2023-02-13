@@ -26,6 +26,6 @@ Simply:
 ```
 cargo run
 ```
-The project includes a helper application which bootstraps the system and kernel for use with qemu.
+The project includes a helper application which bootstraps the system and kernel for use with [QEMU](https://www.qemu.org/).
 You can also try it out on real hardware with the generated GPT disk image found in `target/build-ak_os-*/akOS.img`.
 Please note that MBR and BIOS boot support is experimental, we only fully support UEFI.
