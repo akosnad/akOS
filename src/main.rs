@@ -1,3 +1,5 @@
+#![feature(custom_inner_attributes)]
+#![rustfmt::skip::macros(command)]
 #![feature(custom_test_frameworks)]
 #![test_runner(ak_os_tests_runner::test_runner)]
 #![reexport_test_harness_main = "test_main"]
@@ -42,6 +44,10 @@ fn run_in_qemu(
         cmd.arg("-bios").arg(omvf_path);
     }
     if debug {
+        println!(
+            "Running in debug mode, booted image is at {}",
+            uefi_gpt_path.display()
+        );
         cmd.arg("-s").arg("-S");
     }
     for arg in extra_args {

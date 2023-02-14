@@ -21,6 +21,7 @@ struct Time {
     sleepers: Spinlock<Vec<Arc<SleepCounter>>>,
 }
 
+#[inline]
 pub fn boot_elapsed() -> u64 {
     TIME.get().map(|t| t.boot_elapsed.load()).unwrap_or(0)
 }
@@ -104,4 +105,9 @@ pub async fn sleep(n: u64) {
         .await
         .push(s.clone());
     s.wait().await;
+}
+
+pub fn sleep_sync(n: u64) {
+    let s = SleepCounter::new(n);
+    while !s.is_done() {}
 }

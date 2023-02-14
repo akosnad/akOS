@@ -15,16 +15,23 @@ dbg-executor = []
 test = []
 
 [dependencies]
-log = { version = "0.4", features = ["max_level_trace", "release_max_level_info"] }
+log = { version = "0.4", features = [
+  "max_level_trace",
+  "release_max_level_info",
+] }
 x86_64 = "0.14"
 bootloader_api = "0.11"
 linked_list_allocator = "0.10"
 noto-sans-mono-bitmap = "0.2"
 conquer-once = { version = "0.3", default-features = false }
-crossbeam-queue = { version = "0.3", default-features = false, features = ["alloc"] }
+crossbeam-queue = { version = "0.3", default-features = false, features = [
+  "alloc",
+] }
 crossbeam-utils = { version = "0.8", default-features = false }
 lazy_static = { version = "1.4", features = ["spin_no_std"] }
-futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3", default-features = false, features = [
+  "alloc",
+] }
 pic8259 = "0.10"
 x2apic = "0.4"
 acpi = "4.1"

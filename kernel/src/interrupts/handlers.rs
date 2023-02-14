@@ -60,8 +60,14 @@ pub extern "x86-interrupt" fn double_fault_handler(
 }
 
 pub extern "x86-interrupt" fn apic_error_handler(_stack_frame: InterruptStackFrame) {
-    log::trace!("APIC ERROR CAUGHT");
-    eoi();
+    unsafe {
+        let lapic = super::LAPIC
+            .try_get()
+            .expect("tried to get LAPIC while it was uninitialized")
+            .lock_sync();
+        let flags = lapic.error_flags();
+        panic!("EXCEPTION: APIC ERROR: {:#?}", flags);
+    }
 }
 
 pub extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {

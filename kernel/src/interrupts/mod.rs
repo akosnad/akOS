@@ -81,23 +81,27 @@ impl From<IoApicTableIndex> for usize {
 }
 
 unsafe fn init_lapic(base_address: u64) {
-    let mm = crate::mem::get_memory_manager();
-    mm.identity_map_address(base_address)
-        .unwrap_or_else(|e| panic!("can't map APIC base address: {:#?}", e));
+    LAPIC
+        .try_init_once(|| {
+            let mm = crate::mem::get_memory_manager();
+            mm.identity_map_address(base_address)
+                .unwrap_or_else(|e| panic!("can't map APIC base address: {:#?}", e));
 
-    let mut lapic = x2apic::lapic::LocalApicBuilder::new()
-        .set_xapic_base(base_address)
-        .spurious_vector(0xff)
-        .error_vector(InterruptIndex::ApicError.into())
-        .timer_vector(InterruptIndex::Timer.into())
-        .build()
-        .unwrap_or_else(|e| panic!("{}", e));
-    lapic.enable();
+            let mut lapic = x2apic::lapic::LocalApicBuilder::new()
+                .set_xapic_base(base_address)
+                .spurious_vector(0xff)
+                .error_vector(InterruptIndex::ApicError.into())
+                .timer_vector(InterruptIndex::Timer.into())
+                .build()
+                .unwrap_or_else(|e| panic!("{}", e));
+            lapic.enable();
 
-    #[cfg(feature = "dbg-interrupts")]
-    log::debug!("apic id: {}, version: {}", lapic.id(), lapic.version());
+            #[cfg(feature = "dbg-interrupts")]
+            log::debug!("apic id: {}, version: {}", lapic.id(), lapic.version());
 
-    LAPIC.init_once(|| Spinlock::new(lapic));
+            Spinlock::new(lapic)
+        })
+        .expect("LAPIC already initialized");
 }
 
 unsafe fn register_io_apic_entry(ioapic: &mut IoApic, lapic_id: u8, int_index: u8, irq_index: u8) {
@@ -111,49 +115,53 @@ unsafe fn register_io_apic_entry(ioapic: &mut IoApic, lapic_id: u8, int_index: u
 }
 
 unsafe fn init_io_apic(base_address: u64) {
-    let lapic = LAPIC
-        .get()
-        .expect("should have the LAPIC initialized")
-        .lock_sync();
+    IOAPIC
+        .try_init_once(|| {
+            let lapic = LAPIC
+                .get()
+                .expect("should have the LAPIC initialized")
+                .lock_sync();
 
-    let mm = crate::mem::get_memory_manager();
-    mm.identity_map_address(base_address)
-        .unwrap_or_else(|e| panic!("can't map IO-APIC base address: {:#?}", e));
+            let mm = crate::mem::get_memory_manager();
+            mm.identity_map_address(base_address)
+                .unwrap_or_else(|e| panic!("can't map IO-APIC base address: {:#?}", e));
 
-    let mut ioapic = x2apic::ioapic::IoApic::new(base_address);
-    ioapic.init(IOAPIC_INTERRUPT_INDEX_OFFSET);
+            let mut ioapic = x2apic::ioapic::IoApic::new(base_address);
+            ioapic.init(IOAPIC_INTERRUPT_INDEX_OFFSET);
 
-    #[cfg(feature = "dbg-interrupts")]
-    log::debug!("ioapic id: {}, version: {}", ioapic.id(), ioapic.version());
+            #[cfg(feature = "dbg-interrupts")]
+            log::debug!("ioapic id: {}, version: {}", ioapic.id(), ioapic.version());
 
-    register_io_apic_entry(
-        &mut ioapic,
-        lapic.id() as u8,
-        InterruptIndex::Keyboard.into(),
-        IoApicTableIndex::Keyboard.into(),
-    );
-    register_io_apic_entry(
-        &mut ioapic,
-        lapic.id() as u8,
-        InterruptIndex::Mouse.into(),
-        IoApicTableIndex::Mouse.into(),
-    );
+            register_io_apic_entry(
+                &mut ioapic,
+                lapic.id() as u8,
+                InterruptIndex::Keyboard.into(),
+                IoApicTableIndex::Keyboard.into(),
+            );
+            register_io_apic_entry(
+                &mut ioapic,
+                lapic.id() as u8,
+                InterruptIndex::Mouse.into(),
+                IoApicTableIndex::Mouse.into(),
+            );
 
-    drop(lapic);
+            drop(lapic);
 
-    // enable the keyboard and mouse
-    // FIXME: this should be done in the keyboard and mouse driver
-    // TODO: USB Legacy Suport would be a step up
-    let mut cmd = x86_64::instructions::port::Port::<u8>::new(0x64);
-    let mut data = x86_64::instructions::port::Port::<u8>::new(0x60);
-    unsafe {
-        cmd.write(0xae); // enable keyboard port
-        cmd.write(0xa8); // enable mouse port
-        cmd.write(0xd4); // signal that next write is to mouse input buffer
-        data.write(0xf4); // enable mouse
-    }
+            // enable the keyboard and mouse
+            // FIXME: this should be done in the keyboard and mouse driver
+            // TODO: USB Legacy Suport would be a step up
+            let mut cmd = x86_64::instructions::port::Port::<u8>::new(0x64);
+            let mut data = x86_64::instructions::port::Port::<u8>::new(0x60);
+            unsafe {
+                cmd.write(0xae); // enable keyboard port
+                cmd.write(0xa8); // enable mouse port
+                cmd.write(0xd4); // signal that next write is to mouse input buffer
+                data.write(0xf4); // enable mouse
+            }
 
-    IOAPIC.init_once(|| Spinlock::new(ioapic));
+            Spinlock::new(ioapic)
+        })
+        .expect("IOAPIC already initialized");
 }
 
 pub fn init(interrupt_model: Option<InterruptModel>) {
@@ -184,6 +192,7 @@ pub fn init(interrupt_model: Option<InterruptModel>) {
                 init_io_apic(ioapic.address as u64);
             }
         }
+        x86_64::instructions::interrupts::enable();
     } else {
         log::warn!("unsupported interrupt model, no APIC was found");
     }
