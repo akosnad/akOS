@@ -29,8 +29,8 @@ SECTIONS
 {
     . = 8M;
 
-    .text.ap : {
-        *(.text.ap)
+    .text.init : {
+        *(.text.init .text.init.*)
     }
 
     . += KERNEL_OFFSET;

@@ -22,7 +22,7 @@ pub fn init(acpi_tables: &AcpiTables<MemoryManager>) -> Result<(), AcpiError> {
     let cpu_info = platform_info.processor_info.expect("no processor info");
 
     if cpu_info.application_processors.is_empty() {
-        log::debug!("system is single-processor");
+        log::info!("system is single-processor, not starting additional cpus");
         return Ok(());
     }
 
@@ -32,9 +32,7 @@ pub fn init(acpi_tables: &AcpiTables<MemoryManager>) -> Result<(), AcpiError> {
         cpu_info.application_processors.len()
     );
 
-    unsafe {
-        copy_ap_startup_code();
-    }
+    copy_ap_startup_code();
 
     for ap in cpu_info.application_processors.iter() {
         match ap.state {
@@ -43,15 +41,54 @@ pub fn init(acpi_tables: &AcpiTables<MemoryManager>) -> Result<(), AcpiError> {
                 log::debug!("cpu {} is waiting for SIPI", ap.processor_uid);
                 init_ap(ap);
             }
-            ProcessorState::Running => log::debug!("cpu {} is running", ap.processor_uid),
+            ProcessorState::Running => log::warn!("cpu {} is already running", ap.processor_uid),
         }
     }
     Ok(())
 }
 
-unsafe fn copy_ap_startup_code() {
-    let start = core::ptr::addr_of!(_ap_section_start);
-    let end = core::ptr::addr_of!(_ap_section_end);
+fn init_ap(ap: &Processor) {
+    let dest = ap.processor_uid << 24;
+
+    without_interrupts(|| {
+        let mut lapic = crate::interrupts::LAPIC
+            .get()
+            .expect("LAPIC not initialized on BSP")
+            .lock_sync();
+        unsafe {
+            log::trace!("INIT IPI to cpu {}", ap.processor_uid);
+
+            // vector can be anything, it is ignored
+            lapic.send_ipi(0, dest);
+        }
+    });
+    crate::time::sleep_sync(10);
+
+    // send SIPI twice
+    for i in 1..=2 {
+        without_interrupts(|| {
+            let mut lapic = crate::interrupts::LAPIC
+                .get()
+                .expect("LAPIC not initialized on BSP")
+                .lock_sync();
+            unsafe {
+                let vector = (AP_STARTUP_DEST >> 12) & 0xFF;
+                log::trace!(
+                    "SIPI#{} to AP#{} with vector 0x{:x}",
+                    i,
+                    ap.processor_uid,
+                    vector as u8
+                );
+                lapic.send_sipi(vector as u8, dest);
+            }
+        });
+        crate::time::sleep_sync(2);
+    }
+}
+
+fn copy_ap_startup_code() {
+    let start = unsafe { core::ptr::addr_of!(_ap_section_start) };
+    let end = unsafe { core::ptr::addr_of!(_ap_section_end) };
     let size = end as usize - start as usize;
 
     log::trace!(
@@ -71,43 +108,4 @@ unsafe fn copy_ap_startup_code() {
         .expect("failed to identity map AP startup code");
 
     dest_slice.copy_from_slice(slice);
-}
-
-fn init_ap(ap: &Processor) {
-    let dest = ap.processor_uid << 24;
-
-    without_interrupts(|| {
-        let mut lapic = crate::interrupts::LAPIC
-            .get()
-            .expect("LAPIC not initialized on BSP")
-            .lock_sync();
-        unsafe {
-            log::debug!("INIT IPI to cpu {}", ap.processor_uid);
-
-            // vector can be anything, it is ignored
-            lapic.send_ipi(0, dest);
-        }
-    });
-    crate::time::sleep_sync(10);
-
-    // send SIPI twice
-    for i in 1..=2 {
-        without_interrupts(|| {
-            let mut lapic = crate::interrupts::LAPIC
-                .get()
-                .expect("LAPIC not initialized on BSP")
-                .lock_sync();
-            unsafe {
-                let vector = (AP_STARTUP_DEST >> 12) & 0xFF;
-                log::debug!(
-                    "SIPI#{} to {} with vector 0x{:x}",
-                    i,
-                    ap.processor_uid,
-                    vector as u8
-                );
-                lapic.send_sipi(vector as u8, dest);
-            }
-        });
-        crate::time::sleep_sync(2);
-    }
 }
