@@ -20,6 +20,7 @@ pub mod mem;
 pub mod pci;
 pub mod peripheral;
 pub mod serial;
+pub mod smp;
 pub mod task;
 pub mod time;
 pub mod util;
@@ -35,7 +36,8 @@ pub fn init(acpi_tables: Option<AcpiTables<MemoryManager>>) {
     if let Some(tables) = acpi_tables {
         let interrupt_model = tables.platform_info().map(|p| p.interrupt_model).ok();
         interrupts::init(interrupt_model);
-        pci::init(tables).ok();
+        smp::init(&tables).ok();
+        pci::init(&tables).ok();
     } else {
         interrupts::init(None);
     }
