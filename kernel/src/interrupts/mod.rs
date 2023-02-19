@@ -1,4 +1,5 @@
 use acpi::InterruptModel;
+use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;
 use lazy_static::lazy_static;
 use x2apic::{
@@ -12,6 +13,7 @@ use crate::util::Spinlock;
 mod handlers;
 use handlers::*;
 
+pub static LAPIC_BASE: OnceCell<u64> = OnceCell::uninit();
 pub static LAPIC: OnceCell<Spinlock<LocalApic>> = OnceCell::uninit();
 pub static IOAPIC: OnceCell<Spinlock<IoApic>> = OnceCell::uninit();
 
@@ -81,6 +83,7 @@ impl From<IoApicTableIndex> for usize {
 }
 
 unsafe fn init_lapic(base_address: u64) {
+    LAPIC_BASE.init_once(|| base_address);
     LAPIC
         .try_init_once(|| {
             let mm = crate::mem::get_memory_manager();
@@ -196,4 +199,31 @@ pub fn init(interrupt_model: Option<InterruptModel>) {
     } else {
         log::warn!("unsupported interrupt model, no APIC was found");
     }
+}
+
+pub fn init_ap() {
+    x86_64::instructions::interrupts::disable();
+
+    let idt = {
+        let mut idt = InterruptDescriptorTable::new();
+        idt.breakpoint.set_handler_fn(breakpoint_handler);
+        idt.page_fault.set_handler_fn(page_fault_handler);
+        idt.general_protection_fault
+            .set_handler_fn(general_protection_fault_handler);
+        idt.stack_segment_fault
+            .set_handler_fn(stack_segment_fault_handler);
+
+        unsafe {
+            idt.double_fault
+                .set_handler_fn(double_fault_handler)
+                .set_stack_index(crate::gdt::DOUBLE_FAULT_IST_INDEX);
+        }
+
+        let b = Box::new(idt);
+        Box::leak::<'static>(b)
+    };
+
+    idt.load();
+
+    x86_64::instructions::interrupts::enable();
 }

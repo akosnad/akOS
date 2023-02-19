@@ -33,7 +33,13 @@ SECTIONS
         *(.text.init .text.init.*)
     }
 
-    . += KERNEL_OFFSET;
+    . = 16M;
+
+    .data.init : {
+        *(.data.init .data.init.*)
+    }
+
+    . = KERNEL_OFFSET;
 
     .bootloader-config ALIGN(4K) : AT(ADDR(.bootloader-config) - KERNEL_OFFSET) {
         *(.bootloader-config)

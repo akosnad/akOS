@@ -1,3 +1,6 @@
+use alloc::alloc::Global;
+use core::alloc::Allocator;
+
 use x86_64::{
     structures::paging::{
         mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size2MiB, Size4KiB,
@@ -122,4 +125,19 @@ pub fn dump_heap_state() {
 /// out-of-memory state panics for now.
 pub(crate) unsafe fn force_unlock_allocator() {
     ALLOCATOR.force_unlock();
+}
+
+pub struct AlignedAlloc<const N: usize>;
+
+unsafe impl<const N: usize> Allocator for AlignedAlloc<N> {
+    fn allocate(
+        &self,
+        layout: core::alloc::Layout,
+    ) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
+        Global.allocate(layout.align_to(N).unwrap())
+    }
+
+    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, layout: core::alloc::Layout) {
+        Global.deallocate(ptr, layout.align_to(N).unwrap())
+    }
 }

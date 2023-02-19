@@ -1,4 +1,4 @@
-use crate::mem::MemoryManager;
+use crate::mem::{AlignedAlloc, MemoryManager};
 use acpi::{
     platform::{Processor, ProcessorState},
     AcpiError, AcpiTables,
@@ -53,7 +53,7 @@ pub fn init(acpi_tables: &AcpiTables<MemoryManager>) -> Result<(), AcpiError> {
 fn init_ap(ap: &Processor) {
     let dest = ap.processor_uid << 24;
 
-    setup_trampoline();
+    setup_trampoline(ap);
 
     without_interrupts(|| {
         let mut lapic = crate::interrupts::LAPIC
@@ -71,7 +71,7 @@ fn init_ap(ap: &Processor) {
 
     // send SIPI twice
     for i in 1..=2 {
-        without_interrupts(|| {
+        without_interrupts(move || {
             let mut lapic = crate::interrupts::LAPIC
                 .get()
                 .expect("LAPIC not initialized on BSP")
@@ -87,8 +87,15 @@ fn init_ap(ap: &Processor) {
                 lapic.send_sipi(vector as u8, dest);
             }
         });
-        crate::time::sleep_sync(2);
+        crate::time::sleep_sync(1);
     }
+
+    // wait for AP to signal it is ready
+    while !ap_startup::AP_READY.load(core::sync::atomic::Ordering::SeqCst) {
+        crate::time::sleep_sync(1);
+    }
+    crate::time::sleep_sync(10);
+    ap_startup::AP_READY.store(false, core::sync::atomic::Ordering::SeqCst);
 }
 
 fn copy_init() {
@@ -137,44 +144,60 @@ fn copy_trampoline() {
         }
     }
 
-    let tmp_trampoline = ApTrampoline {
-        ap_page_table: mm.lvl4_table_addr(),
-        ..Default::default()
-    };
+    let tmp_trampoline = ApTrampoline::default();
 
     log::trace!("writing trampoline to 0x{:x}", TRAMPOLINE);
     let trampoline = unsafe { &mut *(TRAMPOLINE as *mut ApTrampoline) };
     unsafe {
         core::ptr::write(trampoline, tmp_trampoline);
     }
-    log::trace!("written trampoline data: {:?}", trampoline);
 
+    // temporary GDT
     mm.identity_map_address(0x800, None).unwrap();
 }
 
 #[derive(Debug, Clone)]
 #[repr(C)]
 struct ApTrampoline {
-    ap_ready: bool,
     ap_id: u8,
     ap_page_table: PhysAddr,
     ap_stack_start: VirtAddr,
     ap_stack_end: VirtAddr,
-    ap_gdt: u32,
     ap_entry_code: VirtAddr,
 }
 impl Default for ApTrampoline {
     fn default() -> Self {
         Self {
-            ap_ready: false,
             ap_id: 0,
             ap_page_table: PhysAddr::new(0),
             ap_stack_start: VirtAddr::new(0),
             ap_stack_end: VirtAddr::new(0),
-            ap_gdt: 0,
             ap_entry_code: VirtAddr::new(0),
         }
     }
 }
 
-fn setup_trampoline() {}
+fn setup_trampoline(ap: &Processor) {
+    let mm = crate::mem::get_memory_manager();
+
+    let stack = {
+        let s = alloc::boxed::Box::new_in([0u8; 4096], AlignedAlloc::<4096>);
+        alloc::boxed::Box::leak::<'static>(s)
+    };
+    let ap_stack_start = VirtAddr::new(stack.as_ptr() as u64);
+    let ap_stack_end = ap_stack_start + stack.len() as u64;
+
+    let tmp_trampoline = ApTrampoline {
+        ap_id: ap.processor_uid as u8,
+        ap_page_table: mm.lvl4_table_addr(),
+        ap_stack_start,
+        ap_stack_end,
+        ap_entry_code: VirtAddr::new(ap_startup::kernel_ap_main as *const () as u64),
+    };
+
+    let trampoline = unsafe { &mut *(TRAMPOLINE as *mut ApTrampoline) };
+    unsafe {
+        core::ptr::write(trampoline, tmp_trampoline);
+    }
+    log::trace!("written trampoline data: {:?}", trampoline);
+}

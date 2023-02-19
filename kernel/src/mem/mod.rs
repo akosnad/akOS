@@ -21,8 +21,8 @@ use crate::util::Spinlock;
 mod allocator;
 mod frame_allocator;
 
-pub use allocator::dump_heap_state;
 pub(crate) use allocator::force_unlock_allocator;
+pub use allocator::{dump_heap_state, AlignedAlloc};
 
 static MEMORY_MANAGER: OnceCell<MemoryManager> = OnceCell::uninit();
 
@@ -46,6 +46,10 @@ impl MemoryManager<'_> {
             .lock_sync()
             .translate_addr(VirtAddr::new(pt))
             .expect("lvl4 table is not mapped")
+    }
+
+    pub fn translate_addr(&self, addr: VirtAddr) -> Option<PhysAddr> {
+        self.page_table.lock_sync().translate_addr(addr)
     }
 
     pub fn identity_map(

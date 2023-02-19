@@ -4,6 +4,8 @@
 #![feature(anonymous_lifetime_in_impl_trait)]
 #![feature(const_option)]
 #![feature(custom_test_frameworks)]
+#![feature(allocator_api)]
+#![feature(alloc_layout_extra)]
 
 use ::acpi::AcpiTables;
 use mem::MemoryManager;
