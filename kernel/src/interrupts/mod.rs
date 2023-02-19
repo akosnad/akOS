@@ -84,7 +84,7 @@ unsafe fn init_lapic(base_address: u64) {
     LAPIC
         .try_init_once(|| {
             let mm = crate::mem::get_memory_manager();
-            mm.identity_map_address(base_address)
+            mm.identity_map_address(base_address, None)
                 .unwrap_or_else(|e| panic!("can't map APIC base address: {:#?}", e));
 
             let mut lapic = x2apic::lapic::LocalApicBuilder::new()
@@ -123,7 +123,7 @@ unsafe fn init_io_apic(base_address: u64) {
                 .lock_sync();
 
             let mm = crate::mem::get_memory_manager();
-            mm.identity_map_address(base_address)
+            mm.identity_map_address(base_address, None)
                 .unwrap_or_else(|e| panic!("can't map IO-APIC base address: {:#?}", e));
 
             let mut ioapic = x2apic::ioapic::IoApic::new(base_address);

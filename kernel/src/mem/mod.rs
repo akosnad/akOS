@@ -2,12 +2,15 @@ use acpi::AcpiHandler;
 use alloc::sync::Arc;
 use bootloader_api::info::MemoryRegions;
 use conquer_once::spin::OnceCell;
-use core::{ops::DerefMut, ptr};
+use core::{
+    ops::{DerefMut, Range},
+    ptr,
+};
 use x86_64::{
     structures::paging::{
         mapper::{MapToError, UnmapError},
         FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageSize, PageTable,
-        PageTableFlags, PhysFrame, Size1GiB, Size2MiB, Size4KiB,
+        PageTableFlags, PhysFrame, Size1GiB, Size2MiB, Size4KiB, Translate,
     },
     PhysAddr, VirtAddr,
 };
@@ -37,26 +40,56 @@ pub struct MemoryManager<'a> {
 }
 
 impl MemoryManager<'_> {
-    pub fn identity_map(&self, frame: PhysFrame) -> Result<(), MapToError<Size4KiB>> {
+    pub(crate) fn lvl4_table_addr(&self) -> PhysAddr {
+        let pt = self.page_table.lock_sync().level_4_table() as *const _ as u64;
+        self.page_table
+            .lock_sync()
+            .translate_addr(VirtAddr::new(pt))
+            .expect("lvl4 table is not mapped")
+    }
+
+    pub fn identity_map(
+        &self,
+        frame: PhysFrame,
+        flags: Option<PageTableFlags>,
+    ) -> Result<(), MapToError<Size4KiB>> {
         #[cfg(feature = "dbg-mem")]
         log::trace!("identity mapping frame: {:x?}", frame);
 
+        let flags = flags.unwrap_or_else(|| {
+            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE
+        });
         unsafe {
             self.page_table
                 .lock_sync()
-                .identity_map(
-                    frame,
-                    PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-                    self.frame_allocator.lock_sync().deref_mut(),
-                )?
+                .identity_map(frame, flags, self.frame_allocator.lock_sync().deref_mut())?
                 .flush();
         }
         Ok(())
     }
-    pub fn identity_map_address(&self, physical_address: u64) -> Result<(), MapToError<Size4KiB>> {
-        self.identity_map(PhysFrame::containing_address(PhysAddr::new(
-            physical_address,
-        )))
+    pub fn identity_map_address(
+        &self,
+        physical_address: u64,
+        flags: Option<PageTableFlags>,
+    ) -> Result<(), MapToError<Size4KiB>> {
+        self.identity_map(
+            PhysFrame::containing_address(PhysAddr::new(physical_address)),
+            flags,
+        )
+    }
+
+    pub fn identity_map_range(
+        &self,
+        range: Range<u64>,
+        flags: Option<PageTableFlags>,
+    ) -> Result<(), MapToError<Size4KiB>> {
+        for frame in PhysFrame::range_inclusive(
+            PhysFrame::containing_address(PhysAddr::new(range.start)),
+            PhysFrame::containing_address(PhysAddr::new(range.end - 1)),
+        ) {
+            self.identity_map(frame, flags)?;
+        }
+        Ok(())
     }
 }
 
@@ -128,7 +161,7 @@ impl AcpiHandler for MemoryManager<'_> {
         // TODO: don't necessarily identity map the requested addresses, this could be a bit
         // more smarter. It also panics if it cannot map the address
         for frame in range {
-            self.identity_map(frame)
+            self.identity_map(frame, None)
                 .or_else(|e| match e {
                     MapToError::PageAlreadyMapped(_) => Ok(()), // if the page is already mapped, we
                     // leave it alone for now
