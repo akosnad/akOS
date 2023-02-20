@@ -44,6 +44,10 @@ pub fn schedule(id: u8) -> ! {
     }
 }
 
+pub fn running() -> bool {
+    CAN_SCHEDULE.load(core::sync::atomic::Ordering::SeqCst)
+}
+
 #[derive(Debug)]
 pub struct Executor {
     tasks: Spinlock<BTreeMap<TaskId, Task>>,

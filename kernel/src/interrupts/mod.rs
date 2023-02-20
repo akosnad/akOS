@@ -154,18 +154,6 @@ unsafe fn init_io_apic(base_address: u64) {
 
             drop(lapic);
 
-            // enable the keyboard and mouse
-            // FIXME: this should be done in the keyboard and mouse driver
-            // TODO: USB Legacy Suport would be a step up
-            let mut cmd = x86_64::instructions::port::Port::<u8>::new(0x64);
-            let mut data = x86_64::instructions::port::Port::<u8>::new(0x60);
-            unsafe {
-                cmd.write(0xae); // enable keyboard port
-                cmd.write(0xa8); // enable mouse port
-                cmd.write(0xd4); // signal that next write is to mouse input buffer
-                data.write(0xf4); // enable mouse
-            }
-
             Spinlock::new(ioapic)
         })
         .expect("IOAPIC already initialized");

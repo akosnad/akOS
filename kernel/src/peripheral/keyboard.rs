@@ -14,6 +14,10 @@ static KEYBOARD: OnceCell<Keyboard> = OnceCell::uninit();
 
 pub(super) fn init() {
     KEYBOARD.init_once(Keyboard::new);
+    let mut cmd = x86_64::instructions::port::Port::<u8>::new(0x64);
+    unsafe {
+        cmd.write(0xae); // enable keyboard port
+    }
 }
 
 pub(crate) fn get() -> Option<Keyboard> {

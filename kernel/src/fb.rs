@@ -6,13 +6,31 @@ use noto_sans_mono_bitmap::{
 };
 
 const VSPACE: usize = noto_sans_mono_bitmap::RasterHeight::Size16 as usize;
+const BITMAP_WIDTH: usize = get_raster_width(FontWeight::Regular, RasterHeight::Size16);
 
 static FRAMEBUFFER: LockedFramebuffer = LockedFramebuffer::uninit();
 type LockedFramebuffer = OnceCell<Spinlock<Framebuffer>>;
 
 pub fn init(buf: &'static mut [u8], info: FrameBufferInfo) {
     FRAMEBUFFER.init_once(|| Spinlock::new(Framebuffer::new(buf, info)));
+    for s in crate::kbuf::read_all() {
+        crate::print_fb!("{}", s);
+    }
     log::debug!("hello framebuffer");
+}
+
+pub(crate) fn draw_mouse(x: usize, y: usize) {
+    let fb = FRAMEBUFFER.try_get().expect("framebuffer not initialized");
+    let mut fb = fb.lock_sync();
+    fb.set(x, y, 255);
+}
+
+pub(crate) fn size() -> (usize, usize) {
+    let fb = FRAMEBUFFER
+        .try_get()
+        .expect("framebuffer not initialized")
+        .lock_sync();
+    (fb.info.width, fb.info.height)
 }
 
 /// # Safety
@@ -62,10 +80,9 @@ impl Framebuffer {
         match c {
             '\n' => self.newline(),
             '\r' => self.carriage_return(),
+            '\0' => self.clear(),
             c => {
                 const TAB_SIZE: usize = 8;
-                const BITMAP_WIDTH: usize =
-                    get_raster_width(FontWeight::Regular, RasterHeight::Size16);
 
                 if self.x / BITMAP_WIDTH >= self.width() / BITMAP_WIDTH {
                     self.newline();
@@ -146,7 +163,7 @@ pub fn _print(args: ::core::fmt::Arguments) {
                     .write_fmt(args)
                     .expect("print to framebuffer failed");
             })
-            .expect("failed to get framebuffer");
+            .ok();
     });
 }
 

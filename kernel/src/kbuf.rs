@@ -10,11 +10,18 @@ use crossbeam_queue::SegQueue;
 use futures_util::{task::AtomicWaker, Stream, StreamExt};
 use heapless::{HistoryBuffer, String as StaticString};
 
+use crate::util::Spinlock;
+
 static mut KBUF: KernelBuffer = KernelBuffer::new();
+static KBUF_LOCK: Spinlock<()> = Spinlock::new(());
 static WAKER: AtomicWaker = AtomicWaker::new();
 
 pub async fn read() -> Option<String> {
     unsafe { KBUF.next().await }
+}
+
+pub fn read_all() -> impl Iterator<Item = &'static str> {
+    unsafe { KBUF.iter() }
 }
 
 /// # Safety
@@ -124,7 +131,12 @@ impl core::fmt::Write for HeapKernelBuffer {
 pub fn _print(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
 
+    let _guard = KBUF_LOCK.lock_sync();
+
     crate::serial::_print(args);
+    if !crate::task::executor::running() {
+        crate::fb::_print(args);
+    }
 
     unsafe {
         KBUF.write_fmt(args).expect("print failed");
