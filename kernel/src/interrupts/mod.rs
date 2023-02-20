@@ -26,6 +26,10 @@ lazy_static! {
         idt.page_fault.set_handler_fn(page_fault_handler);
         idt.general_protection_fault.set_handler_fn(general_protection_fault_handler);
         idt.stack_segment_fault.set_handler_fn(stack_segment_fault_handler);
+        idt.non_maskable_interrupt.set_handler_fn(non_maskable_interrupt_handler);
+        idt.segment_not_present.set_handler_fn(segment_not_present_handler);
+        idt.divide_error.set_handler_fn(divide_error_handler);
+        idt.invalid_opcode.set_handler_fn(invalid_opcode_handler);
 
         unsafe {
             idt.double_fault

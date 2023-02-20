@@ -49,6 +49,43 @@ pub extern "x86-interrupt" fn stack_segment_fault_handler(
     );
 }
 
+pub extern "x86-interrupt" fn non_maskable_interrupt_handler(stack_frame: InterruptStackFrame) {
+    panic!(
+        "EXCEPTION: NON-MASKABLE INTERRUPT
+
+{:#?}",
+        stack_frame
+    );
+}
+
+pub extern "x86-interrupt" fn segment_not_present_handler(
+    stack_frame: InterruptStackFrame,
+    error_code: u64,
+) {
+    panic!(
+        "EXCEPTION: SEGMENT NOT PRESENT\nerror code: {}, {:#?}",
+        error_code, stack_frame
+    );
+}
+
+pub extern "x86-interrupt" fn divide_error_handler(stack_frame: InterruptStackFrame) {
+    panic!(
+        "EXCEPTION: DIVIDE ERROR
+
+{:#?}",
+        stack_frame
+    );
+}
+
+pub extern "x86-interrupt" fn invalid_opcode_handler(stack_frame: InterruptStackFrame) {
+    panic!(
+        "EXCEPTION: INVALID OPCODE
+
+{:#?}",
+        stack_frame
+    );
+}
+
 pub extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: u64,
