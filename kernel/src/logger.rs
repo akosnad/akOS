@@ -21,7 +21,12 @@ macro_rules! fmt_record {
 #[cfg(not(debug_assertions))]
 macro_rules! fmt_record {
     ($record:ident) => {
-        format_args!("[{}] {}", $record.level(), $record.args())
+        format_args!(
+            "[{}\t{}]\t{}",
+            $record.level(),
+            $record.target(),
+            $record.args()
+        )
     };
 }
 
