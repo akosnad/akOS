@@ -3,6 +3,7 @@ use acpi::{
     platform::{Processor, ProcessorState},
     AcpiError, AcpiTables,
 };
+use alloc::vec::Vec;
 use x86_64::{
     instructions::interrupts::without_interrupts,
     structures::paging::{mapper::MapToError, PageSize, PageTableFlags, Size4KiB},
@@ -181,8 +182,10 @@ fn setup_trampoline(ap: &Processor) {
     let mm = crate::mem::get_memory_manager();
 
     let stack = {
-        let s = alloc::boxed::Box::new_in([0u8; 4096], AlignedAlloc::<4096>);
-        alloc::boxed::Box::leak::<'static>(s)
+        const STACK_SIZE: usize = 4096 * 16;
+        let mut v = Vec::with_capacity_in(STACK_SIZE, AlignedAlloc::<4096>);
+        v.resize(STACK_SIZE, 0);
+        Vec::leak::<'static>(v)
     };
     let ap_stack_start = VirtAddr::new(stack.as_ptr() as u64);
     let ap_stack_end = ap_stack_start + stack.len() as u64;
