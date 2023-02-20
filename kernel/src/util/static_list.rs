@@ -1,3 +1,10 @@
+//! A [LinkedList] type that can be used without memory allocation
+//!
+//! This is a simple linked list type that can be used without memory
+//! allocation. It is intended to be used in the kernel before heap
+//! allocation is available. After heap allocation is available, it
+//! can be switched to a heap-based list.
+
 use alloc::collections::LinkedList;
 
 use thiserror_no_std::Error;
@@ -9,7 +16,7 @@ pub struct ArrayFullError;
 /// This list type allows for use with no memory allocation.
 ///
 /// After heap allocation is present, we can switch to using a dynamic
-/// linked list type.
+/// linked list type with [`convert_to_heap_allocated`](StaticList::convert_to_heap_allocated).
 pub enum StaticList<T, const N: usize> {
     Array([Option<T>; N]),
     LinkedList(LinkedList<T>),

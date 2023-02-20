@@ -1,3 +1,8 @@
+//! Kernel tasks
+//!
+//! Tasks are used to run asynchronous code in the kernel, called [Task]s. They are similar to
+//! threads, but they are cooperative.
+
 pub mod executor;
 pub mod keyboard;
 pub mod logger;

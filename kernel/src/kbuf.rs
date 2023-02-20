@@ -1,3 +1,7 @@
+//! Kernel text buffer
+//!
+//! Used to print with [`print!`](crate::print) and [`println!`](crate::println).
+
 use alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -24,6 +28,8 @@ pub fn read_all() -> impl Iterator<Item = &'static str> {
     unsafe { KBUF.iter() }
 }
 
+/// Convert the kernel buffer to heap-allocated
+///
 /// # Safety
 ///
 /// This function is unsafe because it only should be called once, after the kernel

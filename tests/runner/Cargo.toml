@@ -1,5 +1,6 @@
 [package]
 name = "ak_os-tests-runner"
+description = "A test runner for the akOS kernel"
 version = "0.1.0"
 edition = "2021"
 

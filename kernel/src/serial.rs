@@ -1,3 +1,7 @@
+//! Serial port driver
+//!
+//! The kernel uses the serial port to print the [kernel buffer](`crate::kbuf`).
+
 use uart_16550::SerialPort;
 
 use crate::util::Spinlock;

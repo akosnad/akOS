@@ -7,6 +7,8 @@
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
 
+//! akOS kernel
+
 use core::sync::atomic::AtomicBool;
 
 use ::acpi::AcpiTables;

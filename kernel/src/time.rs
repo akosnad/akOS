@@ -1,3 +1,5 @@
+//! Elapsed time tracking and task sleeping
+
 use alloc::{sync::Arc, vec::Vec};
 use conquer_once::spin::OnceCell;
 use core::{

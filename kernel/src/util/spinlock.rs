@@ -1,3 +1,5 @@
+//! A spinlock based on [lock_api] with async locking support.
+
 use core::{
     pin::Pin,
     sync::atomic::{AtomicBool, Ordering},

@@ -1,3 +1,5 @@
+//! Global Descriptor Table and Task State Segment
+
 use alloc::boxed::Box;
 use lazy_static::lazy_static;
 use x86_64::instructions::interrupts::without_interrupts;

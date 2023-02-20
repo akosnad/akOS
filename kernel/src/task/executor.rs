@@ -1,3 +1,10 @@
+//! The kernel task executor
+//!
+//! This module contains the kernel task executor. The executor is responsible for
+//! scheduling [Task]s. It is similar to a thread pool, but it is
+//! cooperative. This means that tasks have to yield control to the executor
+//! manually. This is done by using the [Waker] API.
+
 use crate::util::Spinlock;
 
 use super::{Task, TaskId};

@@ -1,3 +1,5 @@
+//! Local APIC and IO APIC based interrupt handling
+
 use acpi::InterruptModel;
 use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;

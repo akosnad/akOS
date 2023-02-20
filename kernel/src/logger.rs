@@ -1,3 +1,7 @@
+//! [`log::Log`] implementation for the kernel
+//!
+//! The logger prints to the [kernel buffer](`crate::kbuf`).
+
 use log::{Log, Metadata};
 
 use crate::println;

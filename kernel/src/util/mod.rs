@@ -1,3 +1,5 @@
+//! Utitilies, structures used by the kernel
+
 pub mod spinlock;
 pub mod static_list;
 

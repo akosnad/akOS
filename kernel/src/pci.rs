@@ -1,3 +1,5 @@
+//! PCI subsystem (stub)
+
 use acpi::{AcpiError, AcpiTables};
 
 use crate::mem::MemoryManager;

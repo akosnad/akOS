@@ -1,3 +1,5 @@
+//! Simple VGA framebuffer driver
+
 use crate::util::Spinlock;
 use bootloader_api::info::{FrameBufferInfo, PixelFormat};
 use conquer_once::{spin::OnceCell, TryGetError};

@@ -1,3 +1,19 @@
+//! This is a helper program to run akOS in QEMU
+//!
+//! It builds the [akOS kernel](../ak_os_kernel) and packages it into a UEFI GPT image.
+//! QEMU is then started with a UEFI BIOS and the built the image.
+//!
+//! # Arguments
+//!
+//! - `-d` or `--debug`: Run QEMU in debug mode. This will pause the execution of the VM and wait for a GDB connection on port 1234.
+//!
+//! - `-b` or `--bios`: Run QEMU with a BIOS instead of UEFI. This is useful for debugging BIOS boot issues.
+//!
+//! - `--`: Any arguments after this will be passed to QEMU. This is useful for passing arguments to QEMU, such as `-smp 4` to run with 4 CPUs.
+//!
+//! When running with `cargo run`, you can pass arguments to this program by separating them with `--`.
+//! For example, `cargo run -- -d -- -smp 4` will run QEMU in debug mode with 4 CPUs.
+
 #![feature(custom_inner_attributes)]
 #![rustfmt::skip::macros(command)]
 #![feature(custom_test_frameworks)]

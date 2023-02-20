@@ -1,13 +1,11 @@
 [package]
 name = "ak_os"
+description = "akOS is a hobbyist operating system written in Rust."
 version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [
-    "kernel",
-    "tests/runner",
-]
+members = ["kernel", "tests/runner"]
 
 [build-dependencies]
 ak_os-kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }
@@ -19,4 +17,6 @@ command-macros = { version = "0.2", features = ["nightly"] }
 
 [dev-dependencies]
 ak_os-tests-runner = { path = "tests/runner" }
-ak_os-kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none", features = ["test"], default-features = false }
+ak_os-kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none", features = [
+  "test",
+], default-features = false }

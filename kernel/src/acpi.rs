@@ -1,3 +1,5 @@
+//! ACPI table parsing
+
 use crate::mem::{get_memory_manager, MemoryManager};
 use acpi::AcpiTables;
 

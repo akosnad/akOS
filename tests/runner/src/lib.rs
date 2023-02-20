@@ -1,3 +1,5 @@
+//! This is a helper crate for running integration tests for the kernel
+
 #![feature(pattern)]
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]

@@ -1,3 +1,7 @@
+//! Kernel memory management
+//!
+//! This module provides [MemoryManager] for the kernel.
+
 use acpi::AcpiHandler;
 use alloc::sync::Arc;
 use bootloader_api::info::MemoryRegions;

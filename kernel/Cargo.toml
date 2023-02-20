@@ -1,10 +1,11 @@
 [package]
 name = "ak_os-kernel"
+description = "akOS kernel"
 version = "0.1.0"
 edition = "2021"
 
 [features]
-default = []
+default = ["dbg"]
 
 dbg = ["dbg-mem", "dbg-acpi", "dbg-interrupts", "dbg-executor", "dbg-smp"]
 dbg-mem = []

@@ -1,3 +1,23 @@
+//! Symmetric Multi-Processing (SMP) support
+//!
+//! This module relies on parsed ACPI tables to initialize additional CPUs.
+//!
+//! # CPU startup procedure
+//!
+//! The CPU startup procedure is described in the
+//! [Intel® 64 and IA-32 Architectures Software Developer’s Manual, Volume 3A, Chapter 8.4](https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf).
+//!
+//! The procedure is as follows:
+//!
+//! 1. The AP startup code is written to the physical address `0x10000`, copied from the kernel section `.text.init`.
+//! see [`ap_startup.s`](/src/ak_os_kernel/smp/ap_startup.s) for the startup code.
+//! 2. The BSP writes the trampoline data to the AP startup address `0xF000` which tells the AP where to put its stack and where the rust entry point is.
+//! 3. The BSP sends and INIT IPI, then two SIPI IPIs to the AP.
+//! 4. The AP starts executing the startup code at `0x10000`, sets up paging, long mode, then jumps into rust code.
+//! 5. The AP signals the BSP that is is done initializing, while the BSP waits.
+//! 6. The BSP continues with the next AP, back to step 2.
+//! 7. Once all APs have been started, they get scheduled to run in the [Executor](crate::task::executor::Executor).
+
 use crate::mem::{AlignedAlloc, MemoryManager};
 use acpi::{
     platform::{Processor, ProcessorState},
