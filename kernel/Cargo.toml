@@ -6,11 +6,12 @@ edition = "2021"
 [features]
 default = []
 
-dbg = ["dbg-mem", "dbg-acpi", "dbg-interrupts", "dbg-executor"]
+dbg = ["dbg-mem", "dbg-acpi", "dbg-interrupts", "dbg-executor", "dbg-smp"]
 dbg-mem = []
 dbg-acpi = []
 dbg-interrupts = []
 dbg-executor = []
+dbg-smp = []
 
 test = []
 

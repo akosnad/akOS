@@ -11,7 +11,8 @@ pub extern "C" fn kernel_ap_main() -> ! {
 
     let trampoline = unsafe { &*(super::TRAMPOLINE as *const super::ApTrampoline) };
 
-    log::info!("hello from AP CPU {}", trampoline.ap_id);
+    #[cfg(feature = "dbg-smp")]
+    log::debug!("hello from AP CPU {}", trampoline.ap_id);
 
     AP_READY.store(true, core::sync::atomic::Ordering::SeqCst);
 

@@ -42,6 +42,7 @@ pub fn init(acpi_tables: &AcpiTables<MemoryManager>) -> Result<(), AcpiError> {
         match ap.state {
             ProcessorState::Disabled => log::warn!("cpu {} is disabled", ap.processor_uid),
             ProcessorState::WaitingForSipi => {
+                #[cfg(feature = "dbg-smp")]
                 log::debug!("cpu {} is waiting for SIPI", ap.processor_uid);
                 init_ap(ap);
             }
@@ -62,16 +63,17 @@ fn init_ap(ap: &Processor) {
             .expect("LAPIC not initialized on BSP")
             .lock_sync();
         unsafe {
+            #[cfg(feature = "dbg-smp")]
             log::trace!("INIT IPI to cpu {}", ap.processor_uid);
 
             // vector can be anything, it is ignored
             lapic.send_ipi(0, dest);
         }
     });
-    crate::time::sleep_sync(10);
+    crate::time::sleep_sync(1);
 
     // send SIPI twice
-    for i in 1..=2 {
+    for _ in 1..=2 {
         without_interrupts(move || {
             let mut lapic = crate::interrupts::LAPIC
                 .get()
@@ -79,12 +81,14 @@ fn init_ap(ap: &Processor) {
                 .lock_sync();
             unsafe {
                 let vector = (AP_STARTUP_DEST >> 12) & 0xFF;
+
+                #[cfg(feature = "dbg-smp")]
                 log::trace!(
-                    "SIPI#{} to AP#{} with vector 0x{:x}",
-                    i,
+                    "SIPI to AP#{} with vector 0x{:x}",
                     ap.processor_uid,
                     vector as u8
                 );
+
                 lapic.send_sipi(vector as u8, dest);
             }
         });
@@ -95,7 +99,7 @@ fn init_ap(ap: &Processor) {
     while !ap_startup::AP_READY.load(core::sync::atomic::Ordering::SeqCst) {
         crate::time::sleep_sync(1);
     }
-    crate::time::sleep_sync(10);
+    crate::time::sleep_sync(1);
     ap_startup::AP_READY.store(false, core::sync::atomic::Ordering::SeqCst);
 }
 
@@ -120,6 +124,7 @@ fn copy_init() {
         }
     }
 
+    #[cfg(feature = "dbg-smp")]
     log::trace!(
         "copying AP CPU startup code from 0x{:x} with size 0x{:x} to 0x{:x}",
         start as usize,
@@ -147,7 +152,9 @@ fn copy_trampoline() {
 
     let tmp_trampoline = ApTrampoline::default();
 
+    #[cfg(feature = "dbg-smp")]
     log::trace!("writing trampoline to 0x{:x}", TRAMPOLINE);
+
     let trampoline = unsafe { &mut *(TRAMPOLINE as *mut ApTrampoline) };
     unsafe {
         core::ptr::write(trampoline, tmp_trampoline);
@@ -202,5 +209,7 @@ fn setup_trampoline(ap: &Processor) {
     unsafe {
         core::ptr::write(trampoline, tmp_trampoline);
     }
+
+    #[cfg(feature = "dbg-smp")]
     log::trace!("written trampoline data: {:?}", trampoline);
 }
