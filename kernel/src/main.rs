@@ -20,10 +20,7 @@ entry_point!(main, config = &BOOTLOADER_CONFIG);
 
 #[cfg(not(feature = "test"))]
 fn main(boot_info: &'static mut BootInfo) -> ! {
-    use lib::{
-        fb, logger, mem, println,
-        task::{executor::Executor, Task},
-    };
+    use lib::{fb, logger, mem, println};
     use x86_64::VirtAddr;
 
     println!(
@@ -61,14 +58,7 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
 
     lib::init(acpi_info);
 
-    let mut executor = Executor::default();
-    executor.spawn(Task::new_with_name("logger", lib::task::logger::process()));
-    executor.spawn(Task::new_with_name(
-        "keyboard",
-        lib::task::keyboard::process(),
-    ));
-    executor.spawn(Task::new_with_name("mouse", lib::task::mouse::process()));
-    executor.run();
+    lib::task::executor::run();
 }
 
 #[cfg(feature = "test")]

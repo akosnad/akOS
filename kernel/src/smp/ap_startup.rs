@@ -14,7 +14,6 @@ pub extern "C" fn kernel_ap_main() -> ! {
     log::info!("hello from AP CPU {}", trampoline.ap_id);
 
     AP_READY.store(true, core::sync::atomic::Ordering::SeqCst);
-    loop {
-        x86_64::instructions::hlt();
-    }
+
+    crate::task::executor::schedule(trampoline.ap_id);
 }

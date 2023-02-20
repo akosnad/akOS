@@ -1,30 +1,66 @@
+use crate::util::Spinlock;
+
 use super::{Task, TaskId};
 use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
+use conquer_once::spin::OnceCell;
 use core::{
     fmt::Debug,
+    sync::atomic::AtomicBool,
     task::{Context, Poll, Waker},
 };
 use crossbeam_queue::ArrayQueue;
 
 static mut DUMP_STATE: bool = false;
-pub static mut RUNNIG: bool = false;
 
+static CAN_SCHEDULE: AtomicBool = AtomicBool::new(false);
+static mut EXECUTOR: OnceCell<Executor> = OnceCell::uninit();
+
+/// This should be called from the main thread to initialize the kernel executor.
+pub fn run() -> ! {
+    unsafe {
+        EXECUTOR
+            .try_init_once(|| {
+                let executor = Executor::default();
+                executor.spawn(Task::new_with_name("logger", super::logger::process()));
+                executor.spawn(Task::new_with_name("keyboard", super::keyboard::process()));
+                executor.spawn(Task::new_with_name("mouse", super::mouse::process()));
+                executor
+            })
+            .expect("executor already initialized");
+        EXECUTOR.get().unwrap().run()
+    }
+}
+
+/// This should be called from additional cores to signal that they are ready to run tasks.
+pub fn schedule(id: u8) -> ! {
+    while !CAN_SCHEDULE.load(core::sync::atomic::Ordering::SeqCst) {
+        core::hint::spin_loop()
+    }
+    unsafe {
+        EXECUTOR
+            .try_get()
+            .expect("executor not initialized")
+            .schedule(id)
+    }
+}
+
+#[derive(Debug)]
 pub struct Executor {
-    tasks: BTreeMap<TaskId, Task>,
+    tasks: Spinlock<BTreeMap<TaskId, Task>>,
     task_queue: Arc<ArrayQueue<TaskId>>,
-    waker_cache: BTreeMap<TaskId, Waker>,
+    waker_cache: Spinlock<BTreeMap<TaskId, Waker>>,
 }
 
 impl Executor {
-    pub fn spawn(&mut self, task: Task) {
+    pub fn spawn(&self, task: Task) {
         let task_id = task.id;
-        if self.tasks.insert(task.id, task).is_some() {
+        if self.tasks.lock_sync().insert(task.id, task).is_some() {
             panic!("task with same ID already exists");
         }
         self.task_queue.push(task_id).expect("task queue full");
     }
 
-    pub fn run_ready_tasks(&mut self) {
+    pub fn run_ready_tasks(&self) {
         // destructive self
         let Self {
             tasks,
@@ -33,11 +69,13 @@ impl Executor {
         } = self;
 
         while let Some(task_id) = task_queue.pop() {
+            let mut tasks = tasks.lock_sync();
             let task = match tasks.get_mut(&task_id) {
                 Some(task) => task,
                 None => continue, // task no longer exists
             };
 
+            let mut waker_cache = waker_cache.lock_sync();
             let waker = waker_cache
                 .entry(task_id)
                 .or_insert_with(|| TaskWaker::new_waker(task_id, task_queue.clone()));
@@ -69,17 +107,25 @@ impl Executor {
         } else {
             interrupts::enable();
         }
-        crate::time::wake_sleepers();
     }
 
-    pub fn run(&mut self) -> ! {
-        unsafe { RUNNIG = true };
+    pub fn run(&self) -> ! {
+        CAN_SCHEDULE.store(true, core::sync::atomic::Ordering::SeqCst);
         loop {
             unsafe {
                 if DUMP_STATE {
                     self.dump_state_inner();
                 }
             }
+            self.run_ready_tasks();
+            self.sleep_if_idle();
+            crate::time::wake_sleepers();
+        }
+    }
+
+    fn schedule(&self, id: u8) -> ! {
+        log::info!("core {} scheduled", id);
+        loop {
             self.run_ready_tasks();
             self.sleep_if_idle();
         }
@@ -101,20 +147,10 @@ impl Executor {
 impl Default for Executor {
     fn default() -> Self {
         Self {
-            tasks: BTreeMap::new(),
+            tasks: Spinlock::new(BTreeMap::new()),
             task_queue: Arc::new(ArrayQueue::new(1024)),
-            waker_cache: BTreeMap::new(),
+            waker_cache: Spinlock::new(BTreeMap::new()),
         }
-    }
-}
-
-impl Debug for Executor {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Executor")
-            .field("tasks", &self.tasks.values())
-            .field("task_queue", &self.task_queue)
-            .field("waker_cache", &self.waker_cache)
-            .finish()
     }
 }
 
