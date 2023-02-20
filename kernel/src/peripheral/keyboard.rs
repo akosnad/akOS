@@ -31,7 +31,11 @@ pub(crate) struct Keyboard {
 impl Keyboard {
     pub fn new() -> Self {
         Self {
-            dev: Arc::new(Spinlock::new(KeyboardDevice::new(HandleControl::Ignore))),
+            dev: Arc::new(Spinlock::new(KeyboardDevice::new(
+                ScancodeSet1::new(),
+                Us104Key,
+                HandleControl::Ignore,
+            ))),
         }
     }
     pub async fn add(&self, scancode: u8) {

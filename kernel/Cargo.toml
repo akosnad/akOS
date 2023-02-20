@@ -37,7 +37,7 @@ pic8259 = "0.10"
 x2apic = "0.4"
 acpi = "4.1"
 uart_16550 = "0.2"
-pc-keyboard = "0.6"
+pc-keyboard = "0.7"
 ps2-mouse = "0.1"
 thiserror-no-std = "2.0"
 heapless = { version = "0.7", features = ["x86-sync-pool"] }
