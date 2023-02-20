@@ -50,6 +50,12 @@ pub extern "x86-interrupt" fn stack_segment_fault_handler(
 }
 
 pub extern "x86-interrupt" fn non_maskable_interrupt_handler(stack_frame: InterruptStackFrame) {
+    if crate::PANICKING.load(core::sync::atomic::Ordering::SeqCst) {
+        x86_64::instructions::interrupts::disable();
+        loop {
+            x86_64::instructions::hlt();
+        }
+    }
     panic!(
         "EXCEPTION: NON-MASKABLE INTERRUPT
 

@@ -216,6 +216,12 @@ pub fn init_ap() {
             .set_handler_fn(general_protection_fault_handler);
         idt.stack_segment_fault
             .set_handler_fn(stack_segment_fault_handler);
+        idt.non_maskable_interrupt
+            .set_handler_fn(non_maskable_interrupt_handler);
+        idt.segment_not_present
+            .set_handler_fn(segment_not_present_handler);
+        idt.divide_error.set_handler_fn(divide_error_handler);
+        idt.invalid_opcode.set_handler_fn(invalid_opcode_handler);
 
         unsafe {
             idt.double_fault
@@ -230,4 +236,12 @@ pub fn init_ap() {
     idt.load();
 
     x86_64::instructions::interrupts::enable();
+}
+
+pub(crate) unsafe fn _panic_handle_all() {
+    LAPIC
+        .try_get()
+        .expect("LAPIC not initialized")
+        .lock_sync()
+        .send_nmi_all(x2apic::lapic::IpiAllShorthand::AllExcludingSelf);
 }

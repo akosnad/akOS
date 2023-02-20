@@ -7,6 +7,8 @@
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
 
+use core::sync::atomic::AtomicBool;
+
 use ::acpi::AcpiTables;
 use mem::MemoryManager;
 
@@ -33,6 +35,8 @@ pub mod test;
 #[cfg(feature = "test")]
 pub use test::*;
 
+static PANICKING: AtomicBool = AtomicBool::new(false);
+
 pub fn init(acpi_tables: Option<AcpiTables<MemoryManager>>) {
     gdt::init();
     if let Some(tables) = acpi_tables {
@@ -56,7 +60,9 @@ pub fn halt() -> ! {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     x86_64::instructions::interrupts::disable();
+    PANICKING.store(true, core::sync::atomic::Ordering::SeqCst);
     unsafe {
+        interrupts::_panic_handle_all();
         serial::force_unlock();
         fb::force_unlock().ok();
     }
