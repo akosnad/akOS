@@ -3,8 +3,6 @@
 .globl _init_section_start
 .globl _init_section_end
 
-.equ KERNEL_OFFSET, 0xFFFFFFFF80000000
-
 # the init section is copied to phys address 0x10000,
 # the trampoline will be one page below that: (see smp/mod.rs)
 # 0x10000 - 0x1000 = 0xF000
@@ -22,6 +20,8 @@ ap_start:
     cli
     cld
 
+    # clear out segment registers,
+    # use linear addressing (from 0x0)
     xor ax, ax
     mov ds, ax
     mov es, ax
@@ -29,8 +29,10 @@ ap_start:
     mov gs, ax
     mov ss, ax
 
+    # initial stack
     mov sp, 0xFC00
-create_gdt:
+
+create_gdt_16:
     mov ax, 0x0
     mov es, ax
     mov di, 0x800
@@ -62,6 +64,13 @@ create_gdt:
 
     lgdt es:[di]
 
+    # set up data segment registers
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+
+prepare_32bit:
     # enable A20 line
     in al, 0x92
     or al, 0x2
@@ -73,15 +82,10 @@ create_gdt:
     out 0x70, al
     in al, 0x71
 
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov ss, ax
-
+    # enable protected mode
     mov eax, cr0
     or eax, 1
     mov cr0, eax
-
 
     # jump to _32bit_start
     push 8
@@ -93,6 +97,8 @@ create_gdt:
     .align 32
     .code32
 _32bit_start:
+
+    # select data segment registers from GDT
     mov    ax, 0x10
     mov    ds, ax
     mov    es, ax
@@ -100,9 +106,10 @@ _32bit_start:
     mov    gs, ax
     mov    ss, ax
 
+    # set up initial stack
     mov esp, 0xfc00
 
-_setup_paging:
+prepare_64bit:
     # first, disable paging
     mov    eax, cr0
     and    eax, 0x7FFFFFFF
@@ -129,10 +136,7 @@ _setup_paging:
     or     eax, (1 << 31) | (1 << 16) | (1 << 0)
     mov    cr0, eax
 
-_create_gdt_64:
-    # load 64 bit GDT
-    #lgdt [GDT_AP.ptr]
-
+load_gdt_64:
     lea edi, GDT_AP.ptr
     lgdt dword ptr [edi]
 
@@ -156,6 +160,8 @@ _64bit_start:
     mov rax, qword ptr [AP_ENTRY_CODE]
     call rax
 
+    # this should never be reached
+    mov rax, 0xDEADBEEFDEADBEEF
 halt:
     hlt
     jmp halt
@@ -166,32 +172,33 @@ _init_section_end:
 
 
 .section .data.init
-.globl GDT_AP
 
-GDT_AP:
+GDT_AP:                     # An initial GDT for jumping into long mode and accessing higher half
+                            # It will be overwritten by the real GDT in rust code
     GDT_AP.null:
         .quad 0
+
     GDT_AP.code:
-#        .long 0xFFFF        # Limit & Base (low, bits 0-15)
-#        .byte 0             # Base (mid, bits 16-23)
-#        .byte 0x94          # Access: Present, not system, exec, RW
-#        .byte 0xAF          # Flags: 4K, LONG_MODE & Limit (high, bits 16-19)
-#        .byte 0             # Base (high, bits 24-31)
-        .quad 0x00AF9B000000FFFF
+        .long 0xFFFF        # Limit & Base (low, bits 0-15)
+        .byte 0x00          # Base (mid, bits 16-23)
+        .byte 0x9B          # Access: Present, not system, exec, RW
+        .byte 0xAF          # Flags: 4K, LONG_MODE & Limit (high, bits 16-19)
+        .byte 0x00          # Base (high, bits 24-31)
+
     GDT_AP.data:
-#        .long 0xFFFF        # Limit & Base (low, bits 0-15)
-#        .byte 0             # Base (mid, bits 16-23)
-#        .byte 0x92          # Access: Present, not system, RW
-#        .byte 0xCF          # Flags: 4K, SZ_32 & Limit (high, bits 16-19)
-#        .byte 0             # Base (high, bits 24-31)
-        .quad 0x00CF93000000FFFF
-    GDT_AP.TSS:
+        .long 0xFFFF        # Limit & Base (low, bits 0-15)
+        .byte 0x00          # Base (mid, bits 16-23)
+        .byte 0x93          # Access: Present, not system, RW
+        .byte 0xCF          # Flags: 4K, SZ_32 & Limit (high, bits 16-19)
+        .byte 0x00          # Base (high, bits 24-31)
+
+    GDT_AP.TSS:             # Shouldn't need to be accurate, as it will be overridden in rust code
         .long 0x00000068
-        .long 0x00CF8900
+        .byte 0x00
+        .byte 0xCF
+        .byte 0x89
+        .byte 0x00
+
     GDT_AP.ptr:
         .word GDT_AP.ptr - GDT_AP - 1
         .quad GDT_AP
-
-.equ GDT_AP_CODE, GDT_AP.code - GDT_AP
-.equ GDT_AP_DATA, GDT_AP.data - GDT_AP
-.equ GDT_AP_PTR, GDT_AP.ptr - GDT_AP
