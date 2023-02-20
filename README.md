@@ -1,14 +1,14 @@
 # akOS
 Rust hobby UEFI OS/kernel
 
-(only a kernel at it's current state)
+(only a simple kernel at it's current state)
 
 ## Project structure
 ```
 akOS
 ├─── build.rs            (main build script)
 ├─── src 
-|   └─── main.rs         (host runner helper source)
+|   └─── main.rs         (host runner helper program)
 |
 ├─── kernel
 |   ├─── src
@@ -16,8 +16,9 @@ akOS
 |   |   ├─── lib.rs      (kernel library)
 |   │   ├─── mem
 |   │   ├─── util
-|   |   ├─── ...
-|   └─── build.rs        (kernel build script)
+|   |   ├─── ...         (... kernel submodules)
+|   ├─── build.rs        (kernel build script)
+|   └─── linker.ld       (kernel linker script)
 └─── ...                 (later on: userspace, filesystem, drivers, etc.)
 ```
 
@@ -25,6 +26,10 @@ akOS
 Simply:
 ```
 cargo run
+```
+Or with multi-core cpu virtualizaton:
+```
+cargo run -- -- -smp 2
 ```
 The project includes a helper application which bootstraps the system and kernel for use with [QEMU](https://www.qemu.org/).
 You can also try it out on real hardware with the generated GPT disk image found in `target/build-ak_os-*/akOS.img`.
