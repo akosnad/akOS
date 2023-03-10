@@ -6,6 +6,7 @@
 #![feature(custom_test_frameworks)]
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
+#![deny(clippy::unwrap_used)]
 
 //! akOS kernel
 

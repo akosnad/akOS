@@ -29,7 +29,11 @@ unsafe impl RawMutex for RawSpinlock {
 
     fn lock(&self) {
         while !self.try_lock() {
-            self.waker.wake();
+            let waker = self.waker.take();
+            match waker {
+                Some(w) => w.wake(),
+                None => core::hint::spin_loop(),
+            }
         }
     }
 
@@ -91,20 +95,24 @@ impl<T> Spinlock<T> {
     }
 
     /// Lock the spinlock synchronously and return the underlying data as a `SpinlockGuard`.
+    #[inline]
     pub fn lock_sync(&self) -> SpinlockGuard<'_, T> {
         self.mutex.lock()
     }
 
     /// Lock the spinlock asynchronously and return the underlying data as a `SpinlockGuard` after
     /// resolving the future.
+    #[inline]
     pub fn lock(&self) -> SpinlockGuardFuture<T> {
         SpinlockGuardFuture { lock: Some(self) }
     }
 
+    #[inline]
     pub fn try_lock(&self) -> Option<SpinlockGuard<'_, T>> {
         self.mutex.try_lock()
     }
 
+    #[inline]
     pub fn is_locked(&self) -> bool {
         self.mutex.is_locked()
     }
@@ -113,6 +121,7 @@ impl<T> Spinlock<T> {
     ///
     /// This function is unsafe because it only should be called if the lock is held by the current
     /// thread/task. Otherwise undefined behavior will occur.
+    #[inline]
     pub unsafe fn force_unlock(&self) {
         self.mutex.force_unlock()
     }

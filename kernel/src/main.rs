@@ -18,7 +18,6 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
 #[cfg(not(feature = "test"))]
 entry_point!(main, config = &BOOTLOADER_CONFIG);
 
-#[cfg(not(feature = "test"))]
 fn main(boot_info: &'static mut BootInfo) -> ! {
     use lib::{fb, logger, mem, println};
     use x86_64::VirtAddr;

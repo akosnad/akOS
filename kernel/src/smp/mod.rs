@@ -18,12 +18,11 @@
 //! 6. The BSP continues with the next AP, back to step 2.
 //! 7. Once all APs have been started, they get scheduled to run in the [Executor](crate::task::executor::Executor).
 
-use crate::mem::{AlignedAlloc, MemoryManager};
+use crate::mem::MemoryManager;
 use acpi::{
     platform::{Processor, ProcessorState},
     AcpiError, AcpiTables,
 };
-use alloc::vec::Vec;
 use x86_64::{
     instructions::interrupts::without_interrupts,
     structures::paging::{mapper::MapToError, PageSize, PageTableFlags, Size4KiB},
@@ -181,7 +180,8 @@ fn copy_trampoline() {
     }
 
     // temporary GDT
-    mm.identity_map_address(0x800, None).unwrap();
+    mm.identity_map_address(0x800, None)
+        .expect("failed to map temporary GDT");
 }
 
 #[derive(Debug, Clone)]
@@ -208,18 +208,15 @@ impl Default for ApTrampoline {
 fn setup_trampoline(ap: &Processor) {
     let mm = crate::mem::get_memory_manager();
 
-    let stack = {
-        const STACK_SIZE: usize = 4096 * 16;
-        let mut v = Vec::with_capacity_in(STACK_SIZE, AlignedAlloc::<4096>);
-        v.resize(STACK_SIZE, 0);
-        Vec::leak::<'static>(v)
-    };
-    let ap_stack_start = VirtAddr::new(stack.as_ptr() as u64);
-    let ap_stack_end = ap_stack_start + stack.len() as u64;
+    const STACK_SIZE: usize = 0x1000 * 8;
+    let (ap_page_table, ap_stack_start) = mm
+        .init_ap(ap.processor_uid as u8, STACK_SIZE)
+        .expect("failed to init AP memory management");
+    let ap_stack_end = ap_stack_start + STACK_SIZE as u64;
 
     let tmp_trampoline = ApTrampoline {
         ap_id: ap.processor_uid as u8,
-        ap_page_table: mm.lvl4_table_addr(),
+        ap_page_table,
         ap_stack_start,
         ap_stack_end,
         ap_entry_code: VirtAddr::new(ap_startup::kernel_ap_main as *const () as u64),

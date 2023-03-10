@@ -40,7 +40,7 @@ pub fn run() -> ! {
 
 /// This should be called from additional cores to signal that they are ready to run tasks.
 pub fn schedule(id: u8) -> ! {
-    while !CAN_SCHEDULE.load(core::sync::atomic::Ordering::SeqCst) {
+    while !CAN_SCHEDULE.load(core::sync::atomic::Ordering::Acquire) {
         core::hint::spin_loop()
     }
     unsafe {
@@ -52,7 +52,7 @@ pub fn schedule(id: u8) -> ! {
 }
 
 pub fn running() -> bool {
-    CAN_SCHEDULE.load(core::sync::atomic::Ordering::SeqCst)
+    CAN_SCHEDULE.load(core::sync::atomic::Ordering::Acquire)
 }
 
 #[derive(Debug)]
@@ -121,7 +121,7 @@ impl Executor {
     }
 
     pub fn run(&self) -> ! {
-        CAN_SCHEDULE.store(true, core::sync::atomic::Ordering::SeqCst);
+        CAN_SCHEDULE.store(true, core::sync::atomic::Ordering::Release);
         loop {
             unsafe {
                 if DUMP_STATE {

@@ -42,6 +42,7 @@ SECTIONS
     . = KERNEL_OFFSET;
 
     .bootloader-config ALIGN(4K) : AT(ADDR(.bootloader-config) - KERNEL_OFFSET) {
+        KERNEL_OFFSET = .;
         *(.bootloader-config)
     }
     .text ALIGN(4K) : AT(ADDR(.text) - KERNEL_OFFSET) {

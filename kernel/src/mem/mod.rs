@@ -3,7 +3,7 @@
 //! This module provides [MemoryManager] for the kernel.
 
 use acpi::AcpiHandler;
-use alloc::sync::Arc;
+use alloc::{boxed::Box, collections::BTreeMap, sync::Arc};
 use bootloader_api::info::MemoryRegions;
 use conquer_once::spin::OnceCell;
 use core::{
@@ -37,21 +37,14 @@ pub fn get_memory_manager() -> MemoryManager<'static> {
         .clone()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MemoryManager<'a> {
     page_table: Arc<Spinlock<OffsetPageTable<'a>>>,
     frame_allocator: Arc<Spinlock<KernelFrameAllocator>>,
+    ap_page_tables: Arc<Spinlock<BTreeMap<u8, OffsetPageTable<'a>>>>,
 }
 
 impl MemoryManager<'_> {
-    pub(crate) fn lvl4_table_addr(&self) -> PhysAddr {
-        let pt = self.page_table.lock_sync().level_4_table() as *const _ as u64;
-        self.page_table
-            .lock_sync()
-            .translate_addr(VirtAddr::new(pt))
-            .expect("lvl4 table is not mapped")
-    }
-
     pub fn translate_addr(&self, addr: VirtAddr) -> Option<PhysAddr> {
         self.page_table.lock_sync().translate_addr(addr)
     }
@@ -98,6 +91,83 @@ impl MemoryManager<'_> {
             self.identity_map(frame, flags)?;
         }
         Ok(())
+    }
+
+    /// Initializes page table for AP CPUs
+    ///
+    /// Returns the physical address of the new level 4 page table and
+    /// the virtual address of the mew stack base
+    pub fn init_ap(
+        &self,
+        cpu_id: u8,
+        stack_size: usize,
+    ) -> Result<(PhysAddr, VirtAddr), MapToError<Size4KiB>> {
+        let lvl4_table = {
+            let mut new_table = PageTable::new();
+            let mut bsp_table = self.page_table.lock_sync();
+            new_table.clone_from(bsp_table.deref_mut().level_4_table());
+            let b = Box::new(new_table);
+            Box::leak(b)
+        };
+        let lvl4_table_addr = {
+            let ptr = lvl4_table as *const _ as u64;
+            self.translate_addr(VirtAddr::new(ptr))
+                .expect("new lvl4 table not mapped")
+        };
+
+        let phys_offset = self.page_table.lock_sync().phys_offset();
+        let mut ap_page_table = unsafe { OffsetPageTable::new(lvl4_table, phys_offset) };
+
+        let ap_stack = self.map_stack(stack_size, &mut ap_page_table)?;
+
+        self.ap_page_tables
+            .lock_sync()
+            .insert(cpu_id, ap_page_table);
+
+        Ok((lvl4_table_addr, ap_stack))
+    }
+
+    fn map_stack(
+        &self,
+        size: usize,
+        page_table: &mut OffsetPageTable,
+    ) -> Result<VirtAddr, MapToError<Size4KiB>> {
+        let start = VirtAddr::new(0xFFFF_FFFF_2000_0000);
+
+        let guard_page: Page<Size4KiB> = Page::containing_address(start - 1u64);
+
+        assert!(self.translate_addr(guard_page.start_address()).is_none());
+
+        for page in Page::range(
+            Page::containing_address(start),
+            Page::containing_address(start + size as u64),
+        ) {
+            let frame = self
+                .frame_allocator
+                .lock_sync()
+                .allocate_frame()
+                .expect("out of memory");
+            unsafe {
+                page_table
+                    .map_to(
+                        page,
+                        frame,
+                        PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+                        self.frame_allocator.lock_sync().deref_mut(),
+                    )?
+                    .ignore();
+            }
+        }
+
+        #[cfg(feature = "dbg-mem")]
+        log::trace!(
+            "mapped stack at 0x{:x} with size 0x{:x}, guard page at 0x{:x}",
+            start,
+            size,
+            guard_page.start_address()
+        );
+
+        Ok(start)
     }
 }
 
@@ -221,6 +291,7 @@ pub unsafe fn init(physical_memory_offset: VirtAddr, memory_regions: &'static Me
         frame_allocator: Arc::new(Spinlock::new(KernelFrameAllocator::init(
             &initial_frame_allocator,
         ))),
+        ap_page_tables: Arc::new(Spinlock::new(BTreeMap::new())),
     });
 
     allocator::extend(4 * Size2MiB::SIZE as usize)
