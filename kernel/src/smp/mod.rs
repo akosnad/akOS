@@ -18,7 +18,10 @@
 //! 6. The BSP continues with the next AP, back to step 2.
 //! 7. Once all APs have been started, they get scheduled to run in the [Executor](crate::task::executor::Executor).
 
-use crate::mem::{AlignedAlloc, MemoryManager};
+use crate::{
+    mem::{AlignedAlloc, MemoryManager},
+    pit::pit_wait,
+};
 use acpi::{
     platform::{Processor, ProcessorState},
     AcpiError, AcpiTables,
@@ -77,6 +80,7 @@ fn init_ap(ap: &Processor) {
 
     setup_trampoline(ap);
 
+    // send INIT IPI
     without_interrupts(|| {
         let mut lapic = crate::interrupts::LAPIC
             .get()
@@ -87,14 +91,14 @@ fn init_ap(ap: &Processor) {
             log::trace!("INIT IPI to cpu {}", ap.processor_uid);
 
             // vector can be anything, it is ignored
-            lapic.send_ipi(0, dest);
+            lapic.send_init_ipi(dest);
         }
     });
-    crate::time::sleep_sync(1);
+    pit_wait(10_000).expect("failed to wait for INIT IPI");
 
     // send SIPI twice
     for _ in 1..=2 {
-        without_interrupts(move || {
+        without_interrupts(|| {
             let mut lapic = crate::interrupts::LAPIC
                 .get()
                 .expect("LAPIC not initialized on BSP")
@@ -112,15 +116,27 @@ fn init_ap(ap: &Processor) {
                 lapic.send_sipi(vector as u8, dest);
             }
         });
+
+        for _ in 1..=10 {
+            if ap_startup::AP_READY.load(core::sync::atomic::Ordering::SeqCst) {
+                pit_wait(300).expect("failed to wait for SIPI");
+                ap_startup::AP_READY.store(false, core::sync::atomic::Ordering::SeqCst);
+                return;
+            }
+            pit_wait(200).expect("failed to wait for SIPI");
+        }
+    }
+
+    for _ in 1..=10 {
+        if ap_startup::AP_READY.load(core::sync::atomic::Ordering::SeqCst) {
+            crate::time::sleep_sync(10);
+            ap_startup::AP_READY.store(false, core::sync::atomic::Ordering::SeqCst);
+            return;
+        }
         crate::time::sleep_sync(1);
     }
 
-    // wait for AP to signal it is ready
-    while !ap_startup::AP_READY.load(core::sync::atomic::Ordering::SeqCst) {
-        crate::time::sleep_sync(1);
-    }
-    crate::time::sleep_sync(1);
-    ap_startup::AP_READY.store(false, core::sync::atomic::Ordering::SeqCst);
+    panic!("AP#{} failed to start", ap.processor_uid);
 }
 
 fn copy_init() {

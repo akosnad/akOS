@@ -25,6 +25,7 @@ pub mod logger;
 pub mod mem;
 pub mod pci;
 pub mod peripheral;
+pub mod pit;
 pub mod serial;
 pub mod smp;
 pub mod task;
