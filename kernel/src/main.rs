@@ -4,8 +4,9 @@
 extern crate alloc;
 
 use ak_os_kernel as lib;
+use alloc::boxed::Box;
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
-use lib::thread::{context_switch, Thread};
+use lib::thread::{context_switch, Thread, TCB as _};
 
 #[cfg(not(feature = "test"))]
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
@@ -58,11 +59,15 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
 
     lib::init(acpi_info);
 
+    context_switch_test();
+
+    lib::halt();
+}
+
+fn context_switch_test() {
     let mut thread1 = Box::new(Thread::new(Box::new(move || ())));
     let mut thread2 = Box::new(Thread::new(Box::new(move || ())));
     unsafe { context_switch(thread1.get_info(), thread2.get_info()) };
-
-    lib::halt();
 }
 
 #[cfg(feature = "test")]
