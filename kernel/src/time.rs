@@ -98,6 +98,9 @@ impl Future for SleepCounterFuture<'_> {
     }
 }
 
+/// Sleep for at least `n` ticks, yielding the current task
+///
+/// `n` is 100us
 pub async fn sleep(n: u64) {
     let s = Arc::new(SleepCounter::new(n));
     TIME.get()
@@ -109,7 +112,13 @@ pub async fn sleep(n: u64) {
     s.wait().await;
 }
 
+/// Sleep for at least `n` ticks, blocking the current task
+///
+///
+/// `n` is 100us
 pub fn sleep_sync(n: u64) {
     let s = SleepCounter::new(n);
-    while !s.is_done() {}
+    while !s.is_done() {
+        x86_64::instructions::hlt();
+    }
 }

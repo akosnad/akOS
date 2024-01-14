@@ -5,7 +5,12 @@ use acpi::{AcpiError, AcpiTables};
 use crate::mem::MemoryManager;
 
 pub fn init(acpi_tables: &AcpiTables<MemoryManager>) -> Result<(), AcpiError> {
-    let _regions = acpi::PciConfigRegions::new(acpi_tables)?;
+    let regions = acpi::PciConfigRegions::new(acpi_tables).map_err(|e| {
+        log::warn!("Failed to parse PCI config regions: {:?}", e);
+        e
+    })?;
+
+    log::trace!("PCI config regions: {:#x?}", regions);
 
     // TODO
     Ok(())

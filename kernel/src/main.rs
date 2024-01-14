@@ -5,6 +5,7 @@ extern crate alloc;
 
 use ak_os_kernel as lib;
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
+use lib::thread::{context_switch, Thread};
 
 #[cfg(not(feature = "test"))]
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
@@ -18,7 +19,6 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
 #[cfg(not(feature = "test"))]
 entry_point!(main, config = &BOOTLOADER_CONFIG);
 
-#[cfg(not(feature = "test"))]
 fn main(boot_info: &'static mut BootInfo) -> ! {
     use lib::{fb, logger, mem, println};
     use x86_64::VirtAddr;
@@ -58,7 +58,11 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
 
     lib::init(acpi_info);
 
-    lib::task::executor::run();
+    let mut thread1 = Box::new(Thread::new(Box::new(move || ())));
+    let mut thread2 = Box::new(Thread::new(Box::new(move || ())));
+    unsafe { context_switch(thread1.get_info(), thread2.get_info()) };
+
+    lib::halt();
 }
 
 #[cfg(feature = "test")]

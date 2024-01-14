@@ -20,7 +20,7 @@
 
 use crate::{
     mem::{AlignedAlloc, MemoryManager},
-    pit::pit_wait,
+    time::sleep_sync,
 };
 use acpi::{
     platform::{Processor, ProcessorState},
@@ -94,7 +94,7 @@ fn init_ap(ap: &Processor) {
             lapic.send_init_ipi(dest);
         }
     });
-    pit_wait(10_000).expect("failed to wait for INIT IPI");
+    sleep_sync(100);
 
     // send SIPI twice
     for _ in 1..=2 {
@@ -119,21 +119,20 @@ fn init_ap(ap: &Processor) {
 
         for _ in 1..=10 {
             if ap_startup::AP_READY.load(core::sync::atomic::Ordering::SeqCst) {
-                pit_wait(300).expect("failed to wait for SIPI");
+                sleep_sync(3);
                 ap_startup::AP_READY.store(false, core::sync::atomic::Ordering::SeqCst);
                 return;
             }
-            pit_wait(200).expect("failed to wait for SIPI");
+            sleep_sync(2);
         }
     }
 
     for _ in 1..=10 {
         if ap_startup::AP_READY.load(core::sync::atomic::Ordering::SeqCst) {
-            crate::time::sleep_sync(10);
             ap_startup::AP_READY.store(false, core::sync::atomic::Ordering::SeqCst);
             return;
         }
-        crate::time::sleep_sync(1);
+        sleep_sync(100);
     }
 
     panic!("AP#{} failed to start", ap.processor_uid);

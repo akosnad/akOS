@@ -5,7 +5,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["dbg-smp"]
+default = []
 
 dbg = ["dbg-mem", "dbg-acpi", "dbg-interrupts", "dbg-executor", "dbg-smp"]
 dbg-mem = []
@@ -36,13 +36,14 @@ futures-util = { version = "0.3", default-features = false, features = [
 ] }
 pic8259 = "0.10"
 x2apic = "0.4.3"
-acpi = "4.1"
+acpi = "4.1.1"
 uart_16550 = "0.2"
 pc-keyboard = "0.7"
 ps2-mouse = "0.1"
 thiserror-no-std = "2.0"
 heapless = { version = "0.7", features = ["x86-sync-pool"] }
 lock_api = "0.4"
+pci_types = "0.6.1"
 
 
 [build-dependencies]

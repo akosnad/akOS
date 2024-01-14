@@ -113,6 +113,17 @@ pub extern "x86-interrupt" fn apic_error_handler(_stack_frame: InterruptStackFra
     }
 }
 
+pub extern "x86-interrupt" fn spurious_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    unsafe {
+        let lapic = super::LAPIC
+            .try_get()
+            .expect("tried to get LAPIC while it was uninitialized")
+            .lock_sync();
+        let flags = lapic.error_flags();
+        panic!("EXCEPTION: SPURIOUS INTERRUPT: {:#?}", flags);
+    }
+}
+
 pub extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
     crate::time::increment();
     eoi();

@@ -43,6 +43,7 @@ lazy_static! {
         idt[InterruptIndex::Timer.into()].set_handler_fn(timer_interrupt_handler);
         idt[InterruptIndex::Keyboard.into()].set_handler_fn(keyboard_interrupt_handler);
         idt[InterruptIndex::Mouse.into()].set_handler_fn(mouse_interrupt_handler);
+        idt[InterruptIndex::Spurious.into()].set_handler_fn(spurious_interrupt_handler);
         idt
     };
 }
@@ -58,6 +59,8 @@ pub enum InterruptIndex {
     Mouse = IOAPIC_INTERRUPT_INDEX_OFFSET + 12,
     ApicError = LAPIC_INTERRUPT_INDEX_OFFSET,
     Timer,
+
+    Spurious = 0xff,
 }
 
 impl From<InterruptIndex> for u8 {
@@ -101,6 +104,8 @@ unsafe fn init_lapic(base_address: u64) {
                 .spurious_vector(0xff)
                 .error_vector(InterruptIndex::ApicError.into())
                 .timer_vector(InterruptIndex::Timer.into())
+                .timer_initial(20000) // 100us
+                .timer_divide(x2apic::lapic::TimerDivide::Div4)
                 .build()
                 .unwrap_or_else(|e| panic!("{}", e));
             lapic.enable();
@@ -185,7 +190,7 @@ pub fn init(interrupt_model: Option<InterruptModel>) {
     if let Some(InterruptModel::Apic(model)) = interrupt_model {
         unsafe {
             init_lapic(model.local_apic_address);
-            for ioapic in model.io_apics {
+            for ioapic in model.io_apics.iter() {
                 init_io_apic(ioapic.address as u64);
             }
         }
@@ -229,9 +234,9 @@ pub fn init_ap() {
 }
 
 pub(crate) unsafe fn _panic_handle_all() {
-    LAPIC
-        .try_get()
-        .expect("LAPIC not initialized")
-        .lock_sync()
-        .send_nmi_all(x2apic::lapic::IpiAllShorthand::AllExcludingSelf);
+    if let Some(lapic) = LAPIC.get() {
+        lapic
+            .lock_sync()
+            .send_nmi_all(x2apic::lapic::IpiAllShorthand::AllExcludingSelf);
+    }
 }

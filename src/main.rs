@@ -65,6 +65,8 @@ fn run_in_qemu(
             uefi_gpt_path.display()
         );
         cmd.arg("-s").arg("-S");
+    } else {
+        println!("Booted image is at {}", uefi_gpt_path.display());
     }
     for arg in extra_args {
         cmd.arg(arg);
