@@ -6,6 +6,7 @@
 #![feature(custom_test_frameworks)]
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
+#![feature(asm_const)]
 
 //! akOS kernel
 
@@ -31,6 +32,7 @@ pub mod smp;
 pub mod task;
 pub mod time;
 pub mod util;
+pub mod process;
 
 #[cfg(feature = "test")]
 pub mod test;

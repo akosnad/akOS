@@ -58,7 +58,23 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
 
     lib::init(acpi_info);
 
-    lib::task::executor::run();
+
+    //lib::task::executor::run();
+    //lib::process::scheduler::run();
+    
+    lib::process::scheduler::init();
+
+    let proc_entry = test_process as *const () as u64;
+    lib::process::spawn("test", VirtAddr::new(proc_entry));
+
+    lib::process::scheduler::run();
+}
+
+fn test_process() {
+    for i in 0..5 {
+        log::info!("test process: {}", i);
+        // lib::process::yield_now();
+    }
 }
 
 #[cfg(feature = "test")]

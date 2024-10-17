@@ -86,8 +86,6 @@ macro_rules! stream_processor_task {
                 } else {
                     WAKER.wake();
                 }
-            } else {
-                log::warn!("queue uninitialized, dropping input!");
             }
         }
 

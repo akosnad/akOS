@@ -137,3 +137,14 @@ pub extern "x86-interrupt" fn mouse_interrupt_handler(_stack_frame: InterruptSta
 
     eoi();
 }
+
+pub extern "x86-interrupt" fn process_yield_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    todo!("yield");
+    eoi();
+}
+
+pub extern "x86-interrupt" fn process_exit_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    crate::process::scheduler::exit_impl();
+
+    eoi();
+}

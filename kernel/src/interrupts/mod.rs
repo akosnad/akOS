@@ -43,6 +43,8 @@ lazy_static! {
         idt[InterruptIndex::Timer.into()].set_handler_fn(timer_interrupt_handler);
         idt[InterruptIndex::Keyboard.into()].set_handler_fn(keyboard_interrupt_handler);
         idt[InterruptIndex::Mouse.into()].set_handler_fn(mouse_interrupt_handler);
+        idt[InterruptIndex::ProcessYield.into()].set_handler_fn(process_yield_interrupt_handler);
+        idt[InterruptIndex::ProcessExit.into()].set_handler_fn(process_exit_interrupt_handler);
         idt
     };
 }
@@ -58,6 +60,8 @@ pub enum InterruptIndex {
     Mouse = IOAPIC_INTERRUPT_INDEX_OFFSET + 12,
     ApicError = LAPIC_INTERRUPT_INDEX_OFFSET,
     Timer,
+    ProcessYield,
+    ProcessExit,
 }
 
 impl From<InterruptIndex> for u8 {
