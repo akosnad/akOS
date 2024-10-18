@@ -58,10 +58,9 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
 
     lib::init(acpi_info);
 
-
     //lib::task::executor::run();
     //lib::process::scheduler::run();
-    
+
     lib::process::scheduler::init();
 
     let proc_entry = test_process as *const () as u64;

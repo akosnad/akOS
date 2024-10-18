@@ -55,6 +55,8 @@
               rustToolchain
 
               cargo-generate
+
+              gdb
             ];
           };
 

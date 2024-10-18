@@ -1,6 +1,6 @@
-use core::{arch::asm, ops::DerefMut};
 use alloc::{collections::BTreeMap, string::String, sync::Arc};
 use conquer_once::spin::OnceCell;
+use core::{arch::asm, ops::DerefMut};
 use crossbeam_queue::ArrayQueue;
 use x86_64::VirtAddr;
 
@@ -19,14 +19,15 @@ pub fn init() {
 }
 
 pub fn run() -> ! {
-    unsafe {
-        SCHEDULER.get().unwrap().run()
-    }
+    unsafe { SCHEDULER.get().unwrap().run() }
 }
 
 pub fn spawn(name: impl Into<String>, entry_point: VirtAddr) {
     unsafe {
-        SCHEDULER.try_get().expect("scheduler not initialized").spawn(name, entry_point)
+        SCHEDULER
+            .try_get()
+            .expect("scheduler not initialized")
+            .spawn(name, entry_point)
     }
 }
 
@@ -38,17 +39,25 @@ pub fn yield_now() {
     }
 }
 
-pub fn exit() {
+pub fn exit(code: u64) {
     log::debug!("exiting");
     const INTERRUPT_IDX: u8 = crate::interrupts::InterruptIndex::ProcessExit as u8;
     unsafe {
-        asm!("int {}", const INTERRUPT_IDX);
+        asm!(
+        "push {};
+        int {}",
+        in(reg) code,
+        const INTERRUPT_IDX
+        );
     }
 }
 
-pub(crate) fn exit_impl() {
+pub(crate) fn exit_impl(code: u64) {
     unsafe {
-        SCHEDULER.try_get().expect("scheduler not initialized").exit()
+        SCHEDULER
+            .try_get()
+            .expect("scheduler not initialized")
+            .exit(code)
     }
 }
 
@@ -73,7 +82,9 @@ impl Scheduler {
                 {
                     let mut current_process = self.current_process.lock_sync();
                     if let Some(current_id) = *current_process {
-                        self.process_queue.push(current_id).expect("failed to push process to queue");
+                        self.process_queue
+                            .push(current_id)
+                            .expect("failed to push process to queue");
                     }
                     *current_process = Some(id);
                 }
@@ -97,13 +108,15 @@ impl Scheduler {
                             mov rsp, {};
                             push {};
                             push {};
+                            push {};
                             ret;",
                             in(reg) cr3,
                             in(reg) stack,
+                            const 0u64,
                             in(reg) exit_addr,
                             in(reg) start_addr,
                         );
-                    }
+                    },
                     Context::Running(_) => {}
                 }
             }
@@ -117,18 +130,27 @@ impl Scheduler {
 
         let id = process.id;
         self.processes.lock_sync().insert(id, process);
-        self.process_queue.push(id).expect("failed to push process to queue");
+        self.process_queue
+            .push(id)
+            .expect("failed to push process to queue");
     }
 
-    pub fn exit(&self) {
-        let current_process = self.current_process
-            .lock_sync()
+    pub fn exit(&self, code: u64) {
+        let current_process = self
+            .current_process
+            .try_lock()
+            .expect("tried to exit when current process is locked")
             .take()
             .expect("tried to exit without a current process");
 
-        let process = self.processes.lock_sync().remove(&current_process).expect("process not found");
-        log::debug!("exited process: {:#?}", process);
-        
+        let process = self
+            .processes
+            .lock_sync()
+            .remove(&current_process)
+            .expect("process not found");
+
+        log::debug!("process {} exited with code: {}", process, code);
+
         todo!("restore last context");
     }
 }

@@ -1,9 +1,13 @@
-use core::{arch::asm, sync::atomic::{AtomicU64, Ordering}};
 use alloc::{boxed::Box, string::String};
+use core::{
+    arch::asm,
+    fmt::Display,
+    sync::atomic::{AtomicU64, Ordering},
+};
 use x86_64::VirtAddr;
 
 pub mod scheduler;
-pub use scheduler::{spawn, yield_now, exit};
+pub use scheduler::{exit, spawn, yield_now};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProcessID(u64);
@@ -37,14 +41,14 @@ pub enum ProcessState {
 #[derive(Debug, Clone)]
 pub enum Context {
     Initial(InitialState),
-    Running(CPURegistersState)
+    Running(CPURegistersState),
 }
 
 #[derive(Debug, Clone)]
 pub struct InitialState {
     pub rip_address: VirtAddr,
     pub cr3_base: u64,
-    pub stack_end: VirtAddr
+    pub stack_end: VirtAddr,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -72,7 +76,6 @@ pub struct CPURegistersState {
     pub ss: u64,
 }
 impl CPURegistersState {
-
     // TODO: better way to save and restore registers
 
     #[inline(always)]
@@ -132,15 +135,20 @@ impl CPURegistersState {
 }
 
 #[derive(Debug)]
-pub enum ProcessError {
-}
+pub enum ProcessError {}
 
 #[derive(Debug)]
 pub struct Process {
     pub id: ProcessID,
     pub name: String,
     pub state: ProcessState,
-    pub context: Box<Context>
+    pub context: Box<Context>,
+}
+
+impl Display for Process {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}({:?})", self.name, self.id.0)
+    }
 }
 
 impl Process {
@@ -166,7 +174,7 @@ impl Process {
             id: pid,
             name,
             state: ProcessState::Waiting,
-            context: Box::new(state)
+            context: Box::new(state),
         })
     }
 }

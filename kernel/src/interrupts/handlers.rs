@@ -1,3 +1,5 @@
+use core::{arch::asm, mem::size_of};
+
 use x86_64::structures::idt::{InterruptStackFrame, PageFaultErrorCode};
 
 #[inline(always)]
@@ -143,8 +145,15 @@ pub extern "x86-interrupt" fn process_yield_interrupt_handler(_stack_frame: Inte
     eoi();
 }
 
-pub extern "x86-interrupt" fn process_exit_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    crate::process::scheduler::exit_impl();
+pub extern "x86-interrupt" fn process_exit_interrupt_handler(stack_frame: InterruptStackFrame) {
+    let code = unsafe {
+        // read process exit code from its stack
+        let ptr: *const u64 = stack_frame.stack_pointer.as_ptr();
+        // skip to code variable
+        let ptr = ptr.offset(16);
+        *ptr
+    };
+    crate::process::scheduler::exit_impl(code);
 
     eoi();
 }
