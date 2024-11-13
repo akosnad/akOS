@@ -18,7 +18,10 @@
 //! 6. The BSP continues with the next AP, back to step 2.
 //! 7. Once all APs have been started, they get scheduled to run in the [Executor](crate::task::executor::Executor).
 
+use core::sync::atomic::AtomicUsize;
+
 use crate::{
+    interrupts::LAPIC,
     mem::{AlignedAlloc, MemoryManager},
     time::sleep_sync,
 };
@@ -43,14 +46,34 @@ extern "C" {
     static _init_section_end: u8;
 }
 
+pub fn me() -> u32 {
+    without_interrupts(|| unsafe { LAPIC.get().expect("LAPIC not initialized").lock_sync().id() })
+}
+
+static mut CORE_COUNT: AtomicUsize = AtomicUsize::new(1);
+
+pub fn core_count() -> usize {
+    unsafe { CORE_COUNT.load(core::sync::atomic::Ordering::Relaxed) }
+}
+
 pub fn init(acpi_tables: &AcpiTables<MemoryManager>) -> Result<(), AcpiError> {
     let platform_info = acpi_tables.platform_info()?;
     let cpu_info = platform_info.processor_info.expect("no processor info");
 
     if cpu_info.application_processors.is_empty() {
         log::info!("system is single-processor, not starting additional cpus");
+        crate::thread::scheduler::init();
         return Ok(());
     }
+
+    unsafe {
+        CORE_COUNT.store(
+            cpu_info.application_processors.len() + 1,
+            core::sync::atomic::Ordering::Relaxed,
+        );
+    }
+
+    crate::thread::scheduler::init();
 
     log::debug!(
         "system BSP cpu is {}, starting {} AP cpus",

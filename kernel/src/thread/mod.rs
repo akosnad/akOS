@@ -2,11 +2,13 @@
 //!
 //! Threads are used to run preemtively scheduled code.
 
+pub mod scheduler;
 mod thread_entry_point;
 
 use alloc::boxed::Box;
-use core::sync::atomic::AtomicU64;
+use core::{fmt::Debug, sync::atomic::AtomicU64};
 
+pub use scheduler::{cleanup, schedule, stop, surrender, swap_active};
 pub use thread_entry_point::context_switch;
 use thread_entry_point::thread_entry_point;
 
@@ -29,7 +31,7 @@ impl Default for ThreadId {
 type Task = dyn 'static + FnOnce() + Send + Sync;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ThreadInfo {
     stack_pointer: usize,
 }
@@ -40,7 +42,7 @@ impl ThreadInfo {
 }
 
 /// Thread Control Block
-pub trait TCB: Send + Sync {
+pub trait TCB: Send + Sync + Debug {
     fn get_info(&mut self) -> *mut ThreadInfo;
     fn get_work(&mut self) -> Box<Task>;
 }
@@ -91,5 +93,16 @@ impl TCB for Thread {
             Some(task) => task,
             None => panic!("Thread had no work!"),
         }
+    }
+}
+
+impl Debug for Thread {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Thread")
+            .field("id", &self.id)
+            .field("thread_info", &self.thread_info)
+            .field("stack", &"...")
+            .field("work", &self.work.as_ref().map(|w| w as *const _))
+            .finish()
     }
 }

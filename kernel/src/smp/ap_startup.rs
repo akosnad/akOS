@@ -1,5 +1,9 @@
 use core::sync::atomic::AtomicBool;
 
+use alloc::boxed::Box;
+
+use crate::thread;
+
 pub static AP_READY: AtomicBool = AtomicBool::new(false);
 
 core::arch::global_asm!(include_str!("ap_startup.s"));
@@ -16,5 +20,14 @@ pub extern "C" fn kernel_ap_main() -> ! {
 
     AP_READY.store(true, core::sync::atomic::Ordering::SeqCst);
 
-    crate::task::executor::schedule(trampoline.ap_id);
+    //crate::task::executor::schedule(trampoline.ap_id)
+
+    let idle_thread = Box::new(thread::Thread::new(Box::new(|| loop {
+        thread::surrender();
+    })));
+    thread::schedule(idle_thread);
+
+    loop {
+        thread::surrender();
+    }
 }

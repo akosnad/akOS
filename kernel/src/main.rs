@@ -3,10 +3,11 @@
 
 extern crate alloc;
 
+use core::sync::atomic::AtomicUsize;
+
 use ak_os_kernel as lib;
-use alloc::boxed::Box;
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
-use lib::thread::{context_switch, Thread, TCB as _};
+use lib::thread::surrender;
 
 #[cfg(not(feature = "test"))]
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
@@ -61,13 +62,59 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
 
     context_switch_test();
 
+    //scheduler_test();
+
     lib::halt();
 }
 
 fn context_switch_test() {
-    let mut thread1 = Box::new(Thread::new(Box::new(move || ())));
-    let mut thread2 = Box::new(Thread::new(Box::new(move || ())));
-    unsafe { context_switch(thread1.get_info(), thread2.get_info()) };
+    use alloc::{boxed::Box, sync::Arc};
+    use lib::thread::schedule;
+    use lib::thread::Thread;
+    use lib::thread::TCB as _;
+
+    let counter = Arc::new(AtomicUsize::new(0));
+
+    let c = counter.clone();
+    let mut thread2 = Box::new(Thread::new(Box::new(move || {
+        for _ in 0..10 {
+            c.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+        }
+    })));
+
+    schedule(thread2);
+    surrender();
+    log::info!(
+        "counter: {}",
+        counter.load(core::sync::atomic::Ordering::SeqCst)
+    );
+}
+
+fn scheduler_test() {
+    use alloc::{boxed::Box, sync::Arc};
+    use lib::thread::{schedule, surrender, Thread};
+
+    let counter = Arc::new(AtomicUsize::new(0));
+    log::trace!("Arc defined at: {:p}", counter.as_ref() as *const _);
+    for _ in 0..1 {
+        let c = counter.clone();
+        let x = Thread::new(Box::new(move || {
+            for _ in 0..10 {
+                let val = c.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+                log::info!("counter: {}", val);
+                surrender();
+            }
+        }));
+        schedule(Box::new(x));
+    }
+    log::info!("scheduled all threads");
+    while counter.load(core::sync::atomic::Ordering::SeqCst) < 100 {
+        surrender();
+    }
+    log::info!(
+        "counter: {}",
+        counter.load(core::sync::atomic::Ordering::SeqCst)
+    );
 }
 
 #[cfg(feature = "test")]

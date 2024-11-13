@@ -30,6 +30,7 @@ unsafe impl RawMutex for RawSpinlock {
     fn lock(&self) {
         while !self.try_lock() {
             self.waker.wake();
+            log::trace!("spinlock locked, yielding");
         }
     }
 
